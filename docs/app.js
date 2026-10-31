@@ -333,7 +333,7 @@
     html += '<h2 class="section-title">Ako to čítať</h2>' + sevLegend() +
       '<ul class="info"><li><b>Isto nehrá</b> – ESPN ho na najbližší zápas vedie ako „Out“, alebo je zápas pred jeho očakávaným návratom.</li>' +
       "<li><b>Otázny</b> (prerušovaný okraj, ?) – Day-To-Day na najbližší zápas, alebo zápas pripadá na obdobie možného návratu.</li>" +
-      "<li>Väčšie mená = základná päťka. Čas je v " + esc(tzName(new Date())) + ", dátum je deň zápasu v USA. Stav sa aktualizuje 2× denne.</li></ul>";
+      "<li>Väčšie mená = základná päťka. Čas je v " + esc(tzName(new Date())) + ", dátum je deň zápasu v USA. Stav sa aktualizuje každé ráno o 7:00.</li></ul>";
     if (params[0]) setTimeout(function () {
       var el = document.getElementById("n-" + params[0]);
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -474,7 +474,7 @@
       '<h2 class="section-title">Dáta</h2><ul class="info">' +
       "<li>Posledná synchronizácia: " + (st.generatedAt ? esc(fmtStamp.format(new Date(st.generatedAt))) : "–") + "</li>" +
       "<li>Posledná úspešná: " + (st.lastSuccessAt ? esc(fmtStamp.format(new Date(st.lastSuccessAt))) : "–") + "</li>" +
-      "<li>Synchronizácia beží automaticky 2× denne: 7:00 a 16:00.</li>" +
+      "<li>Synchronizácia beží automaticky každé ráno o 7:00.</li>" +
       ((st.errors || []).length ? "<li>Chyby: " + st.errors.map(esc).join("; ") + "</li>" : "") +
       "</ul>" +
       '<p class="note">Appka zámerne neukazuje skóre, výsledky, bilancie, štatistiky, predĺženia ani kurzy.</p>';

@@ -25,7 +25,7 @@ nehral, a dá ti odkazy na highlights na YouTube. **Žiadne skóre, výsledky, b
 ## Ako to funguje
 
 ```
-GitHub Actions (7:00 a 16:00) ──► python -m generator.build ──► docs/data/*.json ──► GitHub Pages ──► appka v mobile
+GitHub Actions (denne 7:00) ──► python -m generator.build ──► docs/data/*.json ──► GitHub Pages ──► appka v mobile
                                   │
                                   ├─ ESPN scoreboard  → zoznam zápasov, čas, stav
                                   ├─ ESPN summary     → kto štartoval / hral (box score), skóre sa hneď zahodí
@@ -65,7 +65,8 @@ GitHub Actions (7:00 a 16:00) ──► python -m generator.build ──► docs
    Predvolený model je `claude-sonnet-5-5` s effort `medium`. Zmeniť ich môžeš cez
    *Settings → Secrets and variables → Actions → Variables*: `CLAUDE_MODEL`, `CLAUDE_EFFORT` (`low` / `medium` / `high`).
 5. **Actions → Aktualizácia dát → Run workflow**: prvý beh hneď naplní dáta. Potom beží automaticky
-   2× denne o **07:00** a **16:00** bratislavského času, v lete aj v zime. GitHub cron môže pár minút meškať.
+   raz denne o **07:00** bratislavského času, v lete aj v zime. GitHub cron môže pár minút meškať;
+   ak ráno chýba neskorý zápas zo západného pobrežia, spusti workflow ručne (Actions → Run workflow).
 6. V mobile otvor URL. iPhone: Safari → **Zdieľať → Pridať na plochu**. Android: Chrome → **Inštalovať aplikáciu**.
 
 ### Prihlásenie pri `git push` (Personal Access Token)
