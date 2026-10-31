@@ -149,6 +149,12 @@ class Builder:
             return out
         return [self.today_et - dt.timedelta(days=k) for k in range(REBUILD_DAYS, -1, -1)]
 
+    def games_on(self, us_date):
+        """Zápasy daného US dňa z rozpisov tímov (bez scoreboardu)."""
+        et = ZoneInfo(US_TZ)
+        return [g for g in self.season_games.values() if g["startUTC"] and
+                dt.datetime.fromisoformat(g["startUTC"].replace("Z", "+00:00")).astimezone(et).date() == us_date]
+
     def build_days(self, dates):
         boards = {}
 
@@ -156,6 +162,11 @@ class Builder:
             try:
                 return d, parse.games_from_scoreboard(self.espn.scoreboard(d.strftime("%Y%m%d")))
             except EspnError as e:
+                # Záloha: tie isté zápasy sú aj v rozpisoch tímov (ESPN scoreboard občas pre niektorý deň zlyháva).
+                fallback = self.games_on(d)
+                if fallback:
+                    self.warnings.append(f"Scoreboard {d} nedostupný, zápasy z rozpisov tímov ({e}).")
+                    return d, fallback
                 self.errors.append(f"Rozpis zápasov {d}: {e}")
                 return d, None
 

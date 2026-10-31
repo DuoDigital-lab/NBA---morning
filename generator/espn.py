@@ -29,7 +29,12 @@ class Espn:
                     "Accept": "application/json",
                 })
                 with urllib.request.urlopen(req, timeout=self.timeout) as r:
-                    return json.load(r)
+                    body = r.read()
+                    try:
+                        return json.loads(body)
+                    except ValueError:
+                        raise ValueError(f"neplatný JSON (HTTP {r.status}, {len(body)} B, "
+                                         f"{r.headers.get('Content-Type')})") from None
             except (urllib.error.URLError, TimeoutError, ValueError) as e:
                 last = e
                 if isinstance(e, urllib.error.HTTPError) and 400 <= e.code < 500 and e.code != 429:
