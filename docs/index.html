@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="sk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>NBA Ráno</title>
+  <meta name="description" content="Ranný prehľad NBA zápasov tvojich tímov – bez spoilerov.">
+  <meta name="theme-color" content="#070d1f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="NBA Ráno">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-ball" aria-hidden="true"></span><span>NBA <b>RÁNO</b></span></div>
+    <span class="tagline">bez spoilerov</span>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <main id="view" class="view" aria-live="polite">
+    <p class="loading">Načítavam…</p>
+  </main>
+
+  <nav class="tabbar" aria-label="Hlavné menu">
+    <a href="#zapasy" data-tab="zapasy"><span class="ti ti-games" aria-hidden="true"></span>Zápasy</a>
+    <a href="#kalendar" data-tab="kalendar"><span class="ti ti-cal" aria-hidden="true"></span>Kalendár</a>
+    <a href="#timy" data-tab="timy"><span class="ti ti-teams" aria-hidden="true"></span>Tímy</a>
+    <a href="#recovery" data-tab="recovery"><span class="ti ti-recovery" aria-hidden="true"></span>Recovery</a>
+    <a href="#nastavenia" data-tab="nastavenia"><span class="ti ti-settings" aria-hidden="true"></span>Nastavenia</a>
+  </nav>
+
+  <script src="app.js"></script>
+</body>
+</html>

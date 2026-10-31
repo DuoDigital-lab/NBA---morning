@@ -1,0 +1,4 @@
+#!/bin/zsh
+# Ikonka NBA Ráno: otvorí spúšťač v Termináli (aktualizácia dát + appka + adresa pre telefón).
+PROJECT="$(cd "$(dirname "$0")/../../.." && pwd)"
+open -a Terminal "$PROJECT/Spustiť NBA Ráno.command"

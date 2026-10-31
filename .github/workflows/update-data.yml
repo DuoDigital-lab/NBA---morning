@@ -1,0 +1,80 @@
+name: Aktualizácia dát
+
+on:
+  schedule:
+    # Cieľ: 07:00 a 16:00 Europe/Bratislava. GitHub plánuje len v UTC, preto je každý čas tu dvakrát
+    # (leto CEST = UTC+2, zima CET = UTC+1) a krok "Časové okno" pustí ďalej iba ten správny.
+    - cron: "0 5 * * *"    # 07:00 CEST
+    - cron: "0 6 * * *"    # 07:00 CET
+    - cron: "0 14 * * *"   # 16:00 CEST
+    - cron: "0 15 * * *"   # 16:00 CET
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Časové okno (07:00 / 16:00 Bratislava)
+        id: gate
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          # Ručné spustenie beží vždy. Pri cron behu porovnáme UTC hodinu cronu s aktuálnym posunom Bratislavy,
+          # takže prípadné meškanie GitHub cronu nevadí.
+          if [ -z "$SCHEDULE" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          offset=$(TZ=Europe/Bratislava date +%z)   # +0200 (leto) alebo +0100 (zima)
+          hour=$(echo "$SCHEDULE" | awk '{print $2}')
+          case "$offset:$hour" in
+            +0200:5|+0200:14|+0100:6|+0100:15) echo "run=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "run=false" >> "$GITHUB_OUTPUT"; echo "Mimo okna ($offset, cron $hour UTC) – preskakujem." ;;
+          esac
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+
+      - uses: actions/setup-python@v5
+        if: steps.gate.outputs.run == 'true'
+        with:
+          python-version: "3.12"
+
+      - name: Závislosti (len Claude SDK, zvyšok je štandardná knižnica)
+        if: steps.gate.outputs.run == 'true'
+        run: pip install anthropic
+
+      - name: Testy (vrátane kontroly spoilerov)
+        if: steps.gate.outputs.run == 'true'
+        run: python -m unittest discover -s tests -t . -v
+
+      - name: Generovanie dát
+        if: steps.gate.outputs.run == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL || 'claude-sonnet-5-5' }}
+          CLAUDE_EFFORT: ${{ vars.CLAUDE_EFFORT || 'medium' }}
+        # Pri zlyhaní ESPN skript zapíše chybu do status.json a ponechá poslednú platnú verziu dát.
+        run: python -m generator.build || echo "::warning::Generovanie hlásilo chyby – pozri docs/data/status.json"
+
+      - name: Kontrola spoilerov vo výstupe
+        if: steps.gate.outputs.run == 'true'
+        run: python -m unittest tests.test_no_spoilers.StaticFrontendTest -v
+
+      - name: Commit
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/data state
+          if git diff --cached --quiet; then
+            echo "Žiadne zmeny."
+          else
+            git commit -m "Aktualizácia dát $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push
+          fi

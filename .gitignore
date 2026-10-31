@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.tmp
+.DS_Store
+# surové ESPN odpovede z prieskumu (obsahujú skóre)
+_research/
+# lokálne nastavenia Claude Code
+.claude/
