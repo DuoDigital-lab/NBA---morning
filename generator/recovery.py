@@ -9,6 +9,8 @@ import hashlib
 import json
 import os
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 from . import spoilers
 from .config import CLAUDE_EFFORT, CLAUDE_MODEL
@@ -202,7 +204,7 @@ def severity(item, note, today):
     automatický ESPN dátum návratu ako hrubý orientačný odhad."""
     if item.get("fantasy") == "OFS" or note.get("expectedReturn") == "do konca sezóny":
         return "season", "source"
-    if (item.get("status") or "") == "Day-To-Day":
+    if (item.get("status") or "") == "Day-To-Day" or note.get("expectedReturn") == "zo dňa na deň":
         return "dtd", "source"
     est, basis = return_estimate(item, note)
     if est is None:
@@ -240,7 +242,7 @@ SYSTEM_PROMPT = """You prepare injury notes for a spoiler-free NBA app whose use
 Write in Slovak. Use ONLY the facts given in the input. Never guess or estimate on your own.
 
 Fields:
-- reason: max ~90 characters, what the injury is and why the player is out (body part, diagnosis, surgery, illness, personal reasons). No game events.
+- reason: max ~80 characters, ONLY the injury itself: body part, side, diagnosis, surgery or illness / personal reasons (e.g. "Natiahnutý ľavý hamstring", "Po operácii natrhnutého ACL v pravom kolene"). Do not mention any specific game, opponent, weekday, date, back-to-back or that he "will miss games", and no filler sentences.
 - expected_return: a short Slovak phrase ONLY if the input text explicitly states a timeline or return window, e.g. "3–4 týždne", "najmenej 2 týždne", "cca koniec novembra", "december – január", "do konca sezóny". Keep relative timelines relative; the app shows the date of the report separately. If the status is Day-To-Day and no other timeline is stated, use "zo dňa na deň". If nothing explicit is stated, use exactly "termín neznámy". Ignore the field espn_return_date, it is an automated estimate.
 - return_source: the named reporter and outlet the timeline comes from, e.g. "Chris Haynes (NBA TV)", or "" if not named.
 - return_days: whole number of days from report_date until the expected return, based ONLY on the explicit timeline above (use the upper end of a range, e.g. "3-4 weeks" = 28, "out until late November" = days until Nov 25, "season-ending" = 365, Day-To-Day = 1). null if expected_return is "termín neznámy" or the timeline is vague.
@@ -315,7 +317,7 @@ def _claude_summarize(client, item, text):
 # ---------------------------- verejné API ----------------------------
 
 def _key(item):
-    raw = json.dumps(["v2"] + [item.get(k) for k in ("status", "date", "type", "detail", "side", "fantasy", "_short", "_long")])
+    raw = json.dumps(["v3"] + [item.get(k) for k in ("status", "date", "type", "detail", "side", "fantasy", "_short", "_long")])
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
@@ -326,33 +328,46 @@ def build_recovery(items, cache, warnings):
     if client is None:
         warnings.append(why)
     out = {}
-    claude_failures = 0
+    todo = []
     for pid, item in items.items():
         key = _key(item)
         cached = cache.get(pid)
         if cached and cached.get("key") == key and (cached.get("method") == "claude" or client is None):
             out[pid] = cached["result"]
-            continue
+        else:
+            todo.append((pid, item, key))
+
+    failures = {"n": 0}
+    lock = threading.Lock()
+
+    def summarize(job):
+        pid, item, key = job
         text = spoilers.filter_injury_text(item["_short"] + " " + item["_long"])
         result, method = None, "rules"
-        if client is not None and claude_failures < 5:
+        if client is not None and failures["n"] < 5:
             try:
                 result = _claude_summarize(client, item, text)
                 method = "claude"
             except Exception as e:  # sieť, limit, zlý kľúč, kredit, zlý JSON – spadneme na pravidlá
-                claude_failures += 1
                 msg = " ".join(str(getattr(e, "message", "") or e).split())[:160]
-                warnings.append(f"Claude zhrnutie zlyhalo pre {item.get('name')}: {type(e).__name__}: {msg}")
-                if type(e).__name__ in ("AuthenticationError", "PermissionDeniedError", "NotFoundError"):
-                    claude_failures = 99  # nemá zmysel skúšať ďalších hráčov
+                with lock:
+                    failures["n"] += 1
+                    if type(e).__name__ in ("AuthenticationError", "PermissionDeniedError", "NotFoundError"):
+                        failures["n"] = 99  # nemá zmysel skúšať ďalších hráčov
+                    warnings.append(f"Claude zhrnutie zlyhalo pre {item.get('name')}: {type(e).__name__}: {msg}")
                 result = None
         if result is None or spoilers.find_violations(result):
             result, method = rule_based(item, text), "rules"
         if spoilers.find_violations(result):
             result = {"reason": reason_rule(item), "expectedReturn": UNKNOWN, "days": None, "returnSource": ""}
         result["method"] = method
-        cache[pid] = {"key": key, "method": method, "result": result}
-        out[pid] = result
+        return pid, key, method, result
+
+    # Claude volania súbežne (prvý beh ~90 hráčov), potom už len zmenené správy.
+    with ThreadPoolExecutor(max_workers=6 if client is not None else 1) as ex:
+        for pid, key, method, result in ex.map(summarize, todo):
+            cache[pid] = {"key": key, "method": method, "result": result}
+            out[pid] = result
     for pid in list(cache):
         if pid not in items:
             del cache[pid]
