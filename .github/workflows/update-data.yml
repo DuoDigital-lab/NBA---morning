@@ -51,6 +51,14 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         run: python -m unittest discover -s tests -t . -v
 
+      - name: Kontrola Claude kľúča (hodnota sa nevypisuje)
+        if: steps.gate.outputs.run == 'true'
+        env:
+          HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        run: |
+          if [ "$HAS_KEY" = "true" ]; then echo "ANTHROPIC_API_KEY je nastavený."
+          else echo "::warning::Secret ANTHROPIC_API_KEY nie je nastavený (Settings → Secrets and variables → Actions → Repository secrets)."; fi
+
       - name: Generovanie dát
         if: steps.gate.outputs.run == 'true'
         env:

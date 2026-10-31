@@ -261,13 +261,17 @@ SCHEMA = {
 
 
 def _claude_client():
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        return None
+    """Vracia (klient alebo None, dôvod pre status.json)."""
+    key = (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+    if not key:
+        return None, "Claude API kľúč chýba (GitHub secret ANTHROPIC_API_KEY nie je nastavený) – recovery poznámky sú len z pravidiel."
+    if not key.startswith("sk-ant-"):
+        return None, "Claude API kľúč má nesprávny tvar (má začínať sk-ant-) – recovery poznámky sú len z pravidiel."
     try:
         import anthropic  # noqa: WPS433 – voliteľná závislosť (GitHub Actions)
     except ImportError:
-        return None
-    return anthropic.Anthropic()
+        return None, "Knižnica anthropic nie je nainštalovaná – recovery poznámky sú len z pravidiel."
+    return anthropic.Anthropic(api_key=key), None
 
 
 def _claude_summarize(client, item, text):
@@ -318,9 +322,9 @@ def _key(item):
 def build_recovery(items, cache, warnings):
     """items: {pid: injury item z parse.injuries_from_api}; cache: dict (mení sa na mieste).
     Vracia {pid: {"reason","expectedReturn","returnSource","method"}}."""
-    client = _claude_client()
+    client, why = _claude_client()
     if client is None:
-        warnings.append("Claude API nie je nastavené – recovery poznámky sú len z pravidiel.")
+        warnings.append(why)
     out = {}
     claude_failures = 0
     for pid, item in items.items():
@@ -335,9 +339,12 @@ def build_recovery(items, cache, warnings):
             try:
                 result = _claude_summarize(client, item, text)
                 method = "claude"
-            except Exception as e:  # sieť, limit, zlý JSON – spadneme na pravidlá
+            except Exception as e:  # sieť, limit, zlý kľúč, kredit, zlý JSON – spadneme na pravidlá
                 claude_failures += 1
-                warnings.append(f"Claude zhrnutie zlyhalo pre {item.get('name')}: {type(e).__name__}")
+                msg = " ".join(str(getattr(e, "message", "") or e).split())[:160]
+                warnings.append(f"Claude zhrnutie zlyhalo pre {item.get('name')}: {type(e).__name__}: {msg}")
+                if type(e).__name__ in ("AuthenticationError", "PermissionDeniedError", "NotFoundError"):
+                    claude_failures = 99  # nemá zmysel skúšať ďalších hráčov
                 result = None
         if result is None or spoilers.find_violations(result):
             result, method = rule_based(item, text), "rules"
