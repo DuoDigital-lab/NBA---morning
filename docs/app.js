@@ -370,7 +370,7 @@
 
   function playerCard(p, starts, games) {
     var inj = injuryFor(p.id);
-    var sub = [p.pos, starts != null ? "štartoval " + starts + "/" + games : null].filter(Boolean).join(" · ");
+    var sub = [p.pos, starts != null ? "štartoval " + starts + " z " + games + " odohraných" : null].filter(Boolean).join(" · ");
     var chip = inj ? statusChip(inj) : "";
     var hs = p.headshot ? '<img class="hs" src="' + esc(p.headshot) + '" alt="" loading="lazy" referrerpolicy="no-referrer">' : '<div class="hs"></div>';
     var name = inj ? '<a href="#recovery/' + esc(p.id) + '">' + esc(p.name) + "</a>" : esc(p.name);
@@ -385,7 +385,7 @@
     var byId = {};
     t.roster.forEach(function (p) { byId[p.id] = p; });
     var core = t.core.map(function (c) {
-      return playerCard(byId[c.id] || { id: c.id, name: c.name }, c.starts, t.coreGames);
+      return playerCard(byId[c.id] || { id: c.id, name: c.name }, c.starts, c.played != null ? c.played : t.coreGames);
     }).join("");
     var rest = t.roster.filter(function (p) { return !p.isCore; }).sort(function (a, b) {
       return (parseInt(a.jersey, 10) || 0) - (parseInt(b.jersey, 10) || 0);
@@ -396,7 +396,7 @@
       "<div><h1>" + esc(t.name) + "</h1><p>Súpiska: " + t.roster.length + " hráčov</p></div></div>" +
       '<h2 class="section-title">Základná päťka</h2>' +
       (core ? '<div class="players">' + core + "</div>" : '<p class="note">Zatiaľ bez odohraných zápasov.</p>') +
-      '<p class="note">Najčastejší štartéri z posledných ' + t.coreGames + " zápasov (max. " + window + "), iba hráči na aktuálnej súpiske. Zdroj: ESPN box score.</p>" +
+      '<p class="note">Hráči, ktorí v posledných ' + t.coreGames + " zápasoch tímu (max. " + window + ") štartujú, keď hrajú – vynechané zápasy (zranenie) sa nepočítajú. Iba hráči na aktuálnej súpiske. Zdroj: ESPN box score.</p>" +
       t.notes.map(function (n) { return '<p class="note">⚠︎ ' + esc(n) + "</p>"; }).join("") +
       '<h2 class="section-title">Celý káder<span class="count">' + t.roster.length + "</span></h2>" +
       '<div class="players">' + rest + "</div>" +

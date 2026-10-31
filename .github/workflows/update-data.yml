@@ -6,7 +6,12 @@ on:
     # (leto CEST = UTC+2, zima CET = UTC+1) a krok "Časové okno" pustí ďalej iba ten správny.
     - cron: "0 5 * * *"    # 07:00 CEST
     - cron: "0 6 * * *"    # 07:00 CET
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      backfill_from:
+        description: "Pregenerovať všetky dni od dátumu (YYYY-MM-DD). Prázdne = bežný beh."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -65,8 +70,14 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL || 'claude-sonnet-5-5' }}
           CLAUDE_EFFORT: ${{ vars.CLAUDE_EFFORT || 'medium' }}
+          BACKFILL_FROM: ${{ github.event.inputs.backfill_from }}
         # Pri zlyhaní ESPN skript zapíše chybu do status.json a ponechá poslednú platnú verziu dát.
-        run: python -m generator.build || echo "::warning::Generovanie hlásilo chyby – pozri docs/data/status.json"
+        run: |
+          if [ -n "$BACKFILL_FROM" ]; then
+            python -m generator.build --backfill-from "$BACKFILL_FROM" || echo "::warning::Generovanie hlásilo chyby – pozri docs/data/status.json"
+          else
+            python -m generator.build || echo "::warning::Generovanie hlásilo chyby – pozri docs/data/status.json"
+          fi
 
       - name: Kontrola spoilerov vo výstupe
         if: steps.gate.outputs.run == 'true'

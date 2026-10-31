@@ -18,7 +18,7 @@ nehral, a dá ti odkazy na highlights na YouTube. **Žiadne skóre, výsledky, b
 |---|---|
 | **Zápasy** | Odohrané zápasy (len stav final) zoradené podľa začiatku, „Hostia @ Domáci“, pri každom tíme „(nehral X)“. Tlačidlá **GameTime** (~9 min) a **Motion Station** (~2–3 min) otvoria vyhľadávanie na danom YouTube kanáli. Šípky / ťuknutie na dátum = história. Dole „Dnes v noci hrajú“ s časom v CET/CEST. |
 | **Kalendár** | Zápasy tvojich tímov na 14 dní dopredu, zoskupené po nociach, s rýchlym preskokom na deň. Pri každom tíme **isto nehrá** (ESPN „Out“ na najbližší zápas, alebo zápas pred očakávaným návratom) a **otázny** (Day-To-Day, alebo zápas v období možného návratu). Farba = vážnosť zranenia. Prvé 3 noci sú aj na karte Zápasy. |
-| **Tímy** | Základná päťka (najčastejší štartéri z posledných ≤10 zápasov) a celý káder s pozíciou, číslom a stavom zranenia. |
+| **Tímy** | Základná päťka (hráči, ktorí v posledných ≤20 zápasoch štartujú, keď hrajú) a celý káder s pozíciou, číslom a stavom zranenia. |
 | **Recovery** | Zranení hráči: stav, stručný dôvod, očakávaný návrat, dátum správy a zdroj. Filter „len základná päťka“ / „všetci“. |
 | **Nastavenia** | Sledované tímy, prepínač „Ukáž aj ostatné tímy“, stav synchronizácie. Ukladá sa lokálne v prehliadači. |
 
@@ -29,15 +29,17 @@ GitHub Actions (denne 7:00) ──► python -m generator.build ──► docs/d
                                   │
                                   ├─ ESPN scoreboard  → zoznam zápasov, čas, stav
                                   ├─ ESPN summary     → kto štartoval / hral (box score), skóre sa hneď zahodí
-                                  ├─ ESPN schedule    → posledných 10 zápasov každého tímu (základná päťka)
+                                  ├─ ESPN schedule    → posledných 20 zápasov každého tímu (základná päťka)
                                   ├─ ESPN roster      → aktuálny káder (zohľadňuje trejdy a prepustenia)
                                   └─ ESPN injuries    → Recovery (+ Claude zhrnutie do slovenčiny)
 ```
 
 * **Kto hral:** výhradne box score. Hráč „hral“, ak má v box score riadok so štatistikami a nie je DNP.
   Hráč, ktorý v box score úplne chýba (zranení často nie sú uvedení vôbec), sa počíta ako „nehral“.
-* **Základná päťka** sa počíta k času pred daným zápasom, takže história je konzistentná.
-  Hráč, ktorý už nie je na súpiske, sa vynechá a päťku doplní ďalší najčastejší štartér.
+* **Základná päťka** = hráči s najvyšším podielom štartov v zápasoch, ktoré **odohrali** (posledných ≤20 zápasov tímu).
+  Zápasy, ktoré hráč vynechal kvôli zraneniu, sa mu nepočítajú proti nemu. Zranená hviezda (napr. 2 štarty z 2) preto
+  ostáva v päťke a dočasná náhrada (3 štarty z 5) nie. Hráč posunutý na lavičku hrá bez štartov a z päťky vypadne.
+  Počíta sa k času pred daným zápasom, takže história je konzistentná. Hráč, ktorý už nie je na súpiske, sa vynechá.
 * **Spoiler poistka:** parser skladá výstup iba z vymenovaných polí (whitelist). Pred každým zápisom
   prejde výstup kontrolou (`generator/spoilers.py`). Ak nájde zakázaný kľúč alebo text (skóre, OT, výhra…),
   súbor sa nezapíše. Testy (`tests/`) to overujú na fixtures s vymysleným skóre a umelými titulkami.

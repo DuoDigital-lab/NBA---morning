@@ -5,8 +5,9 @@ DOCS_DIR = os.path.join(ROOT, "docs")
 DATA_DIR = os.path.join(DOCS_DIR, "data")
 STATE_DIR = os.path.join(ROOT, "state")
 
-# Koľko posledných zápasov sa použije na výpočet základnej päťky.
-CORE_WINDOW = 10
+# Koľko posledných zápasov tímu sa použije na výpočet základnej päťky. 20 ≈ 5–6 týždňov, takže hráč
+# s dlhším zranením (napr. 3–4 týždne) z päťky nevypadne; rozhoduje podiel štartov v zápasoch, ktoré odohral.
+CORE_WINDOW = 20
 # Koľko US dní dozadu sa pri každom behu pregeneruje (neskoré opravy box score).
 REBUILD_DAYS = 3
 # Koľko US dní dopredu ukazuje kalendár zápasov.

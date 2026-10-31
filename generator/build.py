@@ -199,7 +199,7 @@ class Builder:
         entry = {"id": g["id"], "startUTC": g["startUTC"], "lineupReady": lu is not None}
         for side, tid in (("away", g["awayId"]), ("home", g["homeId"])):
             core, n = self.core_for(tid, g["startUTC"], g["id"])
-            info = {"teamId": tid, "coreGames": n, "core": [p for p, _ in core], "missing": []}
+            info = {"teamId": tid, "coreGames": n, "core": [c[0] for c in core], "missing": []}
             if lu and tid in lu and core:
                 info["missing"] = [{"id": p, "name": self.pname(p)} for p in missing_players(core, lu[tid])]
             entry[side] = info
@@ -213,7 +213,7 @@ class Builder:
         self.current_core = {}
         for t in self.teams:
             core, n = self.core_for(t["id"])
-            core_ids = [p for p, _ in core]
+            core_ids = [c[0] for c in core]
             self.current_core[t["id"]] = set(core_ids)
             roster = [dict(p, isCore=p["id"] in core_ids) for p in self.rosters.get(t["id"], [])]
             notes = []
@@ -222,7 +222,7 @@ class Builder:
             if len(core) < 5:
                 notes.append("Málo odohraných zápasov na spoľahlivú základnú päťku.")
             out.append(dict(t, coreGames=n,
-                            core=[{"id": p, "name": self.pname(p), "starts": s} for p, s in core],
+                            core=[{"id": p, "name": self.pname(p), "starts": s, "played": g} for p, s, g in core],
                             roster=roster, notes=notes))
         write_json(os.path.join(self.data_dir, "teams.json"),
                    {"generatedAt": iso(self.generated_at), "season": self.season, "window": CORE_WINDOW, "teams": out})

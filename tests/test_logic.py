@@ -17,14 +17,32 @@ class CoreFiveTest(unittest.TestCase):
     def test_most_starts_wins_and_recent_breaks_ties(self):
         games = [lu("1", ["a", "b", "c", "d", "e"]), lu("1", ["a", "b", "c", "d", "f"]), lu("1", ["a", "b", "c", "e", "g"])]
         core = compute_core(games, "1")
-        self.assertEqual([p for p, _ in core][:3], ["a", "b", "c"])
+        self.assertEqual([c[0] for c in core][:3], ["a", "b", "c"])
         # d aj e majú 2 štarty; e štartoval naposledy -> vyššie
-        self.assertEqual([p for p, _ in core][3:], ["e", "d"])
+        self.assertEqual([c[0] for c in core][3:], ["e", "d"])
 
     def test_traded_player_replaced(self):
         games = [lu("1", ["a", "b", "c", "d", "e"]), lu("1", ["a", "b", "c", "d", "f"])]
         core = compute_core(games, "1", roster_ids={"a", "b", "c", "d", "f", "g"})
-        self.assertEqual(sorted(p for p, _ in core), ["a", "b", "c", "d", "f"])
+        self.assertEqual(sorted(c[0] for c in core), ["a", "b", "c", "d", "f"])
+
+    def test_injured_star_stays_and_benched_player_drops(self):
+        five = ["a", "b", "c", "d"]
+        games = [
+            lu("1", five + ["star"], five + ["star", "sub"]),     # hviezda štartuje
+            lu("1", five + ["star"], five + ["star", "sub"]),     # hviezda štartuje
+            lu("1", five + ["sub"], five + ["sub"]),              # hviezda zranená -> náhrada štartuje
+            lu("1", five + ["sub"], five + ["sub"]),
+            lu("1", five + ["sub"], five + ["sub"]),
+        ]
+        core = compute_core(games, "1")
+        self.assertEqual(sorted(c[0] for c in core), ["a", "b", "c", "d", "star"])
+        self.assertIn(("star", 2, 2), core)
+        # sub: 3 štarty z 5 odohraných -> mimo päťky, hoci má viac štartov ako "star"
+        benched = games[:2] + [lu("1", five + ["new"], five + ["new", "star"]) for _ in range(6)]
+        core = compute_core(benched, "1")
+        self.assertIn("new", [c[0] for c in core])     # nový štartér 6/6
+        self.assertNotIn("star", [c[0] for c in core])  # hrá z lavičky: 2 štarty z 8
 
     def test_missing_includes_absent_and_dnp(self):
         core = [("a", 3), ("b", 3), ("c", 3), ("d", 3), ("e", 3)]
