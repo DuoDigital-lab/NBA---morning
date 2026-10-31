@@ -3,6 +3,15 @@
 Osobná PWA appka: každé ráno ukáže, ktoré zápasy tvojich tímov sa v noci odohrali, kto zo základnej päťky
 nehral, a dá ti odkazy na highlights na YouTube. **Žiadne skóre, výsledky, bilancie, štatistiky, OT ani kurzy.**
 
+## Adresy
+
+| Čo | Kde |
+|---|---|
+| Appka (mobil) | https://duodigital-lab.github.io/NBA---morning/ (po zapnutí GitHub Pages) |
+| Repozitár | https://github.com/DuoDigital-lab/NBA---morning |
+| Stav aktualizácií | repo → záložka **Actions** → „Aktualizácia dát“ |
+| Lokálne (Mac) | `NBA Ráno.app` alebo `Spustiť NBA Ráno.command` → http://localhost:8765 |
+
 ## Čo appka obsahuje
 
 | Karta | Obsah |
@@ -58,6 +67,22 @@ GitHub Actions (7:00 a 16:00) ──► python -m generator.build ──► docs
 5. **Actions → Aktualizácia dát → Run workflow**: prvý beh hneď naplní dáta. Potom beží automaticky
    2× denne o **07:00** a **16:00** bratislavského času, v lete aj v zime. GitHub cron môže pár minút meškať.
 6. V mobile otvor URL. iPhone: Safari → **Zdieľať → Pridať na plochu**. Android: Chrome → **Inštalovať aplikáciu**.
+
+### Prihlásenie pri `git push` (Personal Access Token)
+
+Účet sa prihlasuje cez Google, takže nemá heslo. Pri `git push` sa preto namiesto hesla zadáva **token**:
+
+1. github.com → profil → **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
+2. Názov ľubovoľný, **Expiration 90 dní**, *Only select repositories* → `NBA---morning`.
+3. **Repository permissions:** *Contents* = Read and write, *Workflows* = Read and write.
+4. V Termináli na Macu (v priečinku projektu) spusti `git push`: *Username* = `DuoDigital-lab`, *Password* = token.
+   Pri vkladaní tokenu sa nič nezobrazuje. macOS si ho uloží do Keychainu.
+
+Token **nikdy nedávaj do súborov v repe** (repo je verejné). Keď vyprší, `git push` zlyhá: vytvor nový a zadaj ho rovnako.
+Ak pri pushi Mac pamätá starý token, zmaž ho v *Keychain Access* (hľadaj `github.com`).
+Denné aktualizácie dát token nepotrebujú, GitHub Actions má vlastné oprávnenie.
+
+Commity používajú súkromnú adresu `350794261+DuoDigital-lab@users.noreply.github.com`, nie osobný email.
 
 ## Lokálne spustenie
 
