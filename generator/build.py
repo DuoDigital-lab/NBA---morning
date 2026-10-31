@@ -66,8 +66,8 @@ class Builder:
         self.names = {}
 
     # ---------- pomocné ----------
-    def _pmap(self, fn, items):
-        with ThreadPoolExecutor(self.workers) as ex:
+    def _pmap(self, fn, items, workers=None):
+        with ThreadPoolExecutor(workers or self.workers) as ex:
             return list(ex.map(fn, items))
 
     def lineup(self, event_id):
@@ -159,7 +159,7 @@ class Builder:
                 self.errors.append(f"Rozpis zápasov {d}: {e}")
                 return d, None
 
-        for d, games in self._pmap(fetch, dates):
+        for d, games in self._pmap(fetch, dates, workers=3):  # scoreboard je citlivejší na nápor
             boards[d] = games
 
         # Všetky zostavy, ktoré budeme potrebovať (zápasy dňa + okno pred nimi + aktuálne okno tímov).

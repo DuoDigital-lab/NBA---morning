@@ -14,7 +14,8 @@ class EspnError(Exception):
 
 
 class Espn:
-    def __init__(self, timeout=25, retries=3, backoff=2.0):
+    # ESPN občas pri viacerých požiadavkách naraz vráti prázdnu odpoveď -> viac pokusov s dlhšou pauzou.
+    def __init__(self, timeout=25, retries=5, backoff=3.0):
         self.timeout = timeout
         self.retries = retries
         self.backoff = backoff
@@ -33,7 +34,8 @@ class Espn:
                 last = e
                 if isinstance(e, urllib.error.HTTPError) and 400 <= e.code < 500 and e.code != 429:
                     break
-                time.sleep(self.backoff * (attempt + 1))
+                if attempt < self.retries - 1:
+                    time.sleep(self.backoff * (attempt + 1))
         raise EspnError(f"{url}: {last}")
 
     def teams(self):
