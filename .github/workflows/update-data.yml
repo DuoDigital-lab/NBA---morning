@@ -2,10 +2,10 @@ name: Aktualizácia dát
 
 on:
   schedule:
-    # Cieľ: raz denne o 07:00 Europe/Bratislava. GitHub plánuje len v UTC, preto je čas tu dvakrát
-    # (leto CEST = UTC+2, zima CET = UTC+1) a krok "Časové okno" pustí ďalej iba ten správny.
-    - cron: "0 5 * * *"    # 07:00 CEST
-    - cron: "0 6 * * *"    # 07:00 CET
+    # Ráno 2 behy (UTC): zima 06:13 a 07:13, leto 07:13 a 08:13 bratislavského času. Druhý beh doplní neskoré zápasy
+    # a poistí meškanie GitHub cronu. Nepárna minúta = menej preťažený GitHub plánovač.
+    - cron: "13 5 * * *"
+    - cron: "13 6 * * *"
   workflow_dispatch:
     inputs:
       backfill_from:
@@ -25,39 +25,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Časové okno (07:00 Bratislava)
-        id: gate
-        env:
-          SCHEDULE: ${{ github.event.schedule }}
-        run: |
-          # Ručné spustenie beží vždy. Pri cron behu porovnáme UTC hodinu cronu s aktuálnym posunom Bratislavy,
-          # takže prípadné meškanie GitHub cronu nevadí.
-          if [ -z "$SCHEDULE" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
-          offset=$(TZ=Europe/Bratislava date +%z)   # +0200 (leto) alebo +0100 (zima)
-          hour=$(echo "$SCHEDULE" | awk '{print $2}')
-          case "$offset:$hour" in
-            +0200:5|+0100:6) echo "run=true" >> "$GITHUB_OUTPUT" ;;
-            *) echo "run=false" >> "$GITHUB_OUTPUT"; echo "Mimo okna ($offset, cron $hour UTC) – preskakujem." ;;
-          esac
-
       - uses: actions/checkout@v4
-        if: steps.gate.outputs.run == 'true'
 
       - uses: actions/setup-python@v5
-        if: steps.gate.outputs.run == 'true'
         with:
           python-version: "3.12"
 
       - name: Závislosti (len Claude SDK, zvyšok je štandardná knižnica)
-        if: steps.gate.outputs.run == 'true'
         run: pip install anthropic
 
       - name: Testy (vrátane kontroly spoilerov)
-        if: steps.gate.outputs.run == 'true'
         run: python -m unittest discover -s tests -t . -v
 
       - name: Kontrola Claude kľúča (hodnota sa nevypisuje)
-        if: steps.gate.outputs.run == 'true'
         env:
           HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
         run: |
@@ -65,7 +45,6 @@ jobs:
           else echo "::warning::Secret ANTHROPIC_API_KEY nie je nastavený (Settings → Secrets and variables → Actions → Repository secrets)."; fi
 
       - name: Generovanie dát
-        if: steps.gate.outputs.run == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL || 'claude-sonnet-5-5' }}
@@ -80,11 +59,9 @@ jobs:
           fi
 
       - name: Kontrola spoilerov vo výstupe
-        if: steps.gate.outputs.run == 'true'
         run: python -m unittest tests.test_no_spoilers.StaticFrontendTest -v
 
       - name: Commit
-        if: steps.gate.outputs.run == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
