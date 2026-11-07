@@ -155,12 +155,12 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; letter-spacing:
 .at { font-family: var(--font-display); color: var(--muted); font-size: 14px; margin: 0 0 0 56px; letter-spacing: .1em; }
 .hl-btn {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  margin-top: 18px; min-height: 60px; padding: 10px 14px; border-radius: 14px; text-decoration: none; text-align: center;
-  font-family: var(--font-display); font-size: 18px; letter-spacing: .08em; text-transform: uppercase;
-  background: linear-gradient(135deg, var(--red), #b81d33); box-shadow: 0 6px 18px -8px rgba(224,40,60,.7);
+  margin-top: 16px; min-height: 48px; padding: 8px 14px; border-radius: 12px; text-decoration: none; text-align: center;
+  font-family: var(--font-display); font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: #b9d4ff;
+  background: rgba(96,152,255,.13); border: 1px solid rgba(96,152,255,.38);
 }
-.hl-btn .play { display: inline-block; width: 0; height: 0; border-left: 11px solid #fff; border-top: 7px solid transparent; border-bottom: 7px solid transparent; margin-right: 8px; vertical-align: 1px; }
-.hl-btn small { font-family: var(--font-body); font-size: 11px; letter-spacing: 0; text-transform: none; opacity: .85; }
+.hl-btn .play { display: inline-block; width: 0; height: 0; border-left: 10px solid #b9d4ff; border-top: 7px solid transparent; border-bottom: 7px solid transparent; margin-right: 8px; vertical-align: 1px; }
+.hl-btn small { font-family: var(--font-body); font-size: 11px; letter-spacing: 0; text-transform: none; opacity: .75; }
 .hl-btn:active { transform: scale(.98); }
 .result { margin-top: 12px; text-align: center; }
 .reveal {
@@ -177,12 +177,12 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; letter-spacing:
 
 /* ---------- zápas dvoch sledovaných tímov ---------- */
 .game.derby, .up.derby {
-  border: 1.5px solid transparent;
+  border: 2px solid transparent;
   border-radius: 20px;
   background:
     linear-gradient(var(--derby-bg, var(--card)), var(--derby-bg, var(--card))) padding-box,
     linear-gradient(135deg, var(--blue), #9a6bff 50%, var(--red)) border-box;
-  box-shadow: 0 0 22px -6px rgba(224,40,60,.45), 0 0 22px -6px rgba(42,107,242,.45);
+  box-shadow: 0 0 26px -5px rgba(224,40,60,.55), 0 0 26px -5px rgba(42,107,242,.55);
 }
 .up.derby { --derby-bg: var(--bg-2); border-radius: 16px; }
 .derby-tag {
