@@ -16,9 +16,9 @@ nehral, a dá ti odkazy na highlights na YouTube. **Žiadne skóre, výsledky, b
 
 | Karta | Obsah |
 |---|---|
-| **Zápasy** | Odohrané zápasy (len stav final) zoradené podľa začiatku, „Hostia @ Domáci“, pri každom tíme „(nehral X)“. Tlačidlá **GameTime** (~9 min) a **Motion Station** (~2–3 min) otvoria vyhľadávanie na danom YouTube kanáli. Šípky / ťuknutie na dátum = história. Dole „Dnes v noci hrajú“ s časom v CET/CEST. |
+| **Zápasy** | Odohrané zápasy (len stav final) zoradené podľa začiatku, „Hostia @ Domáci“, pri každom tíme „(nehral X)“. Tlačidlo **Highlights** otvorí v Brave YouTube vyhľadávanie „Tím vs Tím highlights <dátum>“. **Zobraziť výsledok** ukáže skutočné skóre daného zápasu, ale až po dvojitom ťuknutí. Šípky / ťuknutie na dátum = história. Dole „Dnes v noci hrajú“ s časom v CET/CEST. |
 | **Kalendár** | Zápasy tvojich tímov na 14 dní dopredu, zoskupené po nociach, s rýchlym preskokom na deň. Pri každom tíme **isto nehrá** (ESPN „Out“ na najbližší zápas, alebo zápas pred očakávaným návratom) a **otázny** (Day-To-Day, alebo zápas v období možného návratu). Farba = vážnosť zranenia. Prvé 3 noci sú aj na karte Zápasy. |
-| **Tímy** | Základná päťka (hráči, ktorí v posledných ≤20 zápasoch štartujú, keď hrajú) a celý káder s pozíciou, číslom a stavom zranenia. |
+| **Tímy** | Počet odohraných zápasov v sezóne (bez výhier a prehier), základná päťka (hráči, ktorí v posledných ≤20 zápasoch štartujú, keď hrajú) a celý káder s pozíciou, číslom a stavom zranenia. Ťuknutím na hráča sa otvorí **profil**: vek, výška, váha, draft, kariéra po tímoch, overené úspechy a štatistiky z ukončených sezón. |
 | **Recovery** | Zranení hráči: stav, stručný dôvod, očakávaný návrat, dátum správy a zdroj. Filter „len základná päťka“ / „všetci“. |
 | **Nastavenia** | Sledované tímy, prepínač „Ukáž aj ostatné tímy“, stav synchronizácie. Ukladá sa lokálne v prehliadači. |
 
@@ -113,14 +113,29 @@ Potrebný je len Python 3.9+. Claude SDK (`pip install anthropic`, Python 3.10+)
 * **Predvolené tímy** (pre nové zariadenie): `DEFAULT_TEAMS` na začiatku `docs/app.js` (skratky ESPN, napr. `GS`, `SA`, `NY`, `UTAH`).
 * Generátor vždy pripraví dáta pre všetkých 30 tímov, takže zmena tímov nevyžaduje nový beh.
 
-## Highlights kanály
+## Highlights
 
-V `docs/app.js` (objekt `YT`):
-* GAMETIME HIGHLIGHTS: `@thegametimehighlights`, plné highlights ~9 min.
-* Motion Station: `@motionstation4342`, krátke recapy ~2–3 min.
-
-Odkaz otvorí **vyhľadávanie v rámci kanála** (napr. „Hornets vs Wizards Oct 30 2026“), nie konkrétne video.
+Jedno tlačidlo otvorí YouTube vyhľadávanie „Hornets vs Wizards highlights Nov 6 2026“. Na Androide ide odkaz priamo do **Brave**
+(intent odkaz obíde appku YouTube; ak Brave nie je nainštalovaný, otvorí sa bežný prehliadač).
 ⚠️ Náhľady videí na YouTube môžu obsahovať skóre. To appka neovplyvní.
+
+## Výsledky (skóre)
+
+Skóre je **len** v `docs/data/scores/<deň>.json` (`generator/results.py`). Appka ho načíta až po dvojitom ťuknutí na
+„Zobraziť výsledok“ pri konkrétnom zápase. Všetky ostatné dáta zostávajú bez skóre a testy to strážia.
+
+## Profily hráčov (ručne, cca raz za pol roka)
+
+```bash
+python3 tools/update_profiles.py      # ~520 hráčov, pár minút
+git add docs/data/players state/wiki_titles.json && git commit -m "Profily hráčov" && git push
+```
+
+* Údaje a kariéra: ESPN. Štatistiky len z **ukončených** sezón (aktuálna by mohla prezradiť včerajší zápas).
+* Úspechy sa zobrazia **len ak sa zhodujú dva zdroje**: ESPN ocenenia a infobox na Wikipédii
+  (All-Star: infobox + články o All-Star zápasoch; tituly: infobox + ESPN kariéra + zoznam šampiónov NBA).
+  Nesúlady skript vypíše a dané ocenenie vynechá. Rekordy sa nezobrazujú, nedajú sa spoľahlivo overiť z dvoch zdrojov.
+* Noví hráči (trejdy, podpisy) profil nemajú, kým sa skript znova nespustí. Appka vtedy napíše, že profil zatiaľ nie je.
 
 ## Keď sa ESPN API zmení
 

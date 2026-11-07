@@ -136,7 +136,7 @@ class RecoveryRulesTest(unittest.TestCase):
         self.assertEqual(sev(200), ("season", "source"))         # > pol roka -> čierna
         self.assertEqual(sev(fantasy="OFS"), ("season", "source"))
         self.assertEqual(sev(), ("unknown", None))               # bez zdroja a bez ESPN dátumu
-        self.assertEqual(sev(returnDate="2027-01-15"), ("month", "espn"))  # záložný ESPN odhad
+        self.assertEqual(sev(returnDate="2027-01-15"), ("unknown", None))  # len ESPN dátum -> sivá (neznámy termín)
 
     def test_reason_and_source(self):
         it = self.item("A B", type="Knee", detail="Surgery", side="Right")

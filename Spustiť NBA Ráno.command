@@ -2,11 +2,12 @@
 # Dvojklik v Finderi: aktualizuje dáta z ESPN a spustí appku (aj pre telefón na rovnakej Wi-Fi).
 cd "$(dirname "$0")" || exit 1
 
-echo "Aktualizujem dáta z ESPN…"
-if python3 -m generator.build > /dev/null 2>&1; then
+# Dáta generuje GitHub (každé ráno). Tu sa len stiahnu – lokálne generovanie by sa bilo s verziou na GitHube.
+echo "Sťahujem aktuálne dáta z GitHubu…"
+if git pull -q --ff-only 2>/dev/null; then
   echo "Dáta sú aktuálne."
 else
-  echo "Pozor: aktualizácia mala problém – appka ukáže poslednú platnú verziu."
+  echo "Pozor: dáta sa nepodarilo stiahnuť – appka ukáže poslednú uloženú verziu."
 fi
 
 # Ak appka už beží (napr. z iného okna), len ju otvor.

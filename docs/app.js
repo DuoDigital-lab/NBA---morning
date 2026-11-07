@@ -5,11 +5,8 @@
   var TZ = "Europe/Bratislava";
   var DEFAULT_TEAMS = ["PHI", "BOS", "TOR", "IND", "SA", "DAL", "DET", "HOU", "MIN", "CLE", "MIA", "GS", "WSH"];
   var STALE_HOURS = 30;
-  var YT = {
-    gametime: { label: "GameTime", hint: "~9 min", url: "https://www.youtube.com/@thegametimehighlights/search?query=" },
-    motion: { label: "Motion Station", hint: "~2–3 min", url: "https://www.youtube.com/@motionstation4342/search?query=" },
-    all: "https://www.youtube.com/results?search_query=",
-  };
+  var YT_SEARCH = "https://www.youtube.com/results?search_query=";
+  var MONTHS_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
   // ---------------- nastavenia (localStorage) ----------------
   var settings = loadSettings();
@@ -20,16 +17,15 @@
     return {
       teams: Array.isArray(s.teams) ? s.teams : DEFAULT_TEAMS.slice(),
       showAll: !!s.showAll,
-      browser: s.browser === "default" ? "default" : "brave",
     };
   }
 
-  // Highlights v Brave: na Androide cez intent odkaz priamo do Brave (inak by ho mohla zachytiť appka YouTube).
+  // Highlights vždy v Brave: na Androide cez intent odkaz priamo do Brave (inak by ho mohla zachytiť appka YouTube).
   // Ak Brave nie je nainštalovaný, otvorí sa bežný odkaz. Na počítači sa otvorí v prehliadači, v ktorom beží appka.
   var BRAVE_ANDROID = "com.brave.browser";
   var IS_ANDROID = /Android/i.test(navigator.userAgent || "");
   function ytLink(url) {
-    if (settings.browser === "brave" && IS_ANDROID) {
+    if (IS_ANDROID) {
       var intent = "intent://" + url.replace(/^https:\/\//, "") + "#Intent;scheme=https;package=" + BRAVE_ANDROID +
         ";S.browser_fallback_url=" + encodeURIComponent(url) + ";end";
       return ' href="' + esc(intent) + '"';
@@ -51,7 +47,8 @@
   var DERBY_TAG = '<span class="derby-tag">★ oba tvoje tímy</span>';
 
   // ---------------- dáta ----------------
-  var state = { teams: [], teamById: {}, index: null, injuries: null, upcoming: null, status: null, days: {}, fromCache: false, failed: [] };
+  var state = { teams: [], teamById: {}, index: null, injuries: null, upcoming: null, status: null, days: {}, fromCache: false, failed: [],
+    revealed: {}, players: {} };
 
   function fetchJSON(path) {
     return fetch(path, { cache: "no-cache" }).then(function (r) {
@@ -198,7 +195,7 @@
       "</div>";
     var games = day.games.filter(function (g) { return tracked(g.away.teamId) || tracked(g.home.teamId); });
     var hidden = day.games.length - games.length;
-    var body = games.length ? '<div class="games">' + games.map(gameCard).join("") + "</div>"
+    var body = games.length ? '<div class="games">' + games.map(function (g) { return gameCard(g, day.date); }).join("") + "</div>"
       : '<p class="empty">Tvoje tímy v tento deň nehrali.</p>';
     if (hidden > 0) body += '<p class="note">Ďalšie zápasy ostatných tímov: ' + hidden + " (zapni „Ukáž aj ostatné tímy“ v Nastaveniach).</p>";
     if (games.length) body += '<p class="note">Farba chýbajúceho hráča = očakávaná dĺžka výpadku (aktuálny stav, ťukni pre detail):</p>' + sevLegend();
@@ -216,10 +213,36 @@
       "<small>" + (isHome ? "DOMÁCI" : "HOSTIA") + "</small></div>" + absent + "</div></div>";
   }
 
-  function gameCard(g) {
+  // YouTube vyhľadávanie "Hornets vs Wizards highlights Oct 30 2026" (dátum = deň zápasu v USA, aby to bol ten správny).
+  function highlightsQuery(a, h, date) {
+    var d = usDate(date);
+    return (a.short || a.name) + " vs " + (h.short || h.name) + " highlights " +
+      MONTHS_EN[d.getUTCMonth()] + " " + d.getUTCDate() + " " + d.getUTCFullYear();
+  }
+
+  // Skutočný výsledok: načíta sa až po dvoch ťuknutiach (prvé len pripraví tlačidlo), z oddeleného súboru.
+  function resultHtml(g, date) {
+    var r = state.revealed[g.id];
+    if (r) return '<div class="result" id="res-' + esc(g.id) + '">' + r + "</div>";
+    return '<div class="result" id="res-' + esc(g.id) + '"><button type="button" class="reveal" data-reveal="' + esc(g.id) +
+      '" data-date="' + esc(date) + '">Zobraziť výsledok</button></div>';
+  }
+  function revealScore(gameId, date) {
+    return fetchJSON("data/scores/" + date + ".json").then(function (all) {
+      var r = all[gameId];
+      var g = (state.days[date] || { games: [] }).games.filter(function (x) { return x.id === gameId; })[0];
+      if (!r || !g) return '<span class="res-none">Výsledok zatiaľ nie je k dispozícii.</span>';
+      var a = state.teamById[g.away.teamId] || {}, h = state.teamById[g.home.teamId] || {};
+      var ot = r.ot ? '<small>' + (r.ot === 1 ? "po predĺžení" : "po " + r.ot + " predĺženiach") + "</small>" : "";
+      return '<div class="res-score"><span>' + esc(a.abbr) + '</span><b>' + r.away + '</b><i>:</i><b>' + r.home +
+        '</b><span>' + esc(h.abbr) + "</span></div>" + ot;
+    });
+  }
+
+  function gameCard(g, date) {
     var a = state.teamById[g.away.teamId] || {}, h = state.teamById[g.home.teamId] || {};
     var start = new Date(g.startUTC);
-    var q = g.ytQuery || "";
+    var q = highlightsQuery(a, h, date);
     var pending = g.lineupReady ? "" : '<p class="note">Zostava sa ešte spracúva – skús neskôr.</p>';
     var both = derby(g.away.teamId, g.home.teamId);
     return '<article class="game' + (both ? " derby" : "") + '">' +
@@ -227,11 +250,9 @@
       '<div class="body">' + (both ? DERBY_TAG : "") + '<div class="meta"><span>' + esc(a.abbr || "") + " @ " + esc(h.abbr || "") + "</span><span>začiatok " +
       esc(fmtTime.format(start)) + " " + esc(tzName(start)) + "</span></div>" +
       teamRow(g.away, false) + '<div class="at">@</div>' + teamRow(g.home, true) + pending +
-      '<div class="hl">' +
-      '<a class="gt"' + ytLink(YT.gametime.url + encodeURIComponent(q)) + ">" + YT.gametime.label + " <small>highlights " + YT.gametime.hint + "</small></a>" +
-      '<a class="ms"' + ytLink(YT.motion.url + encodeURIComponent(q)) + ">" + YT.motion.label + " <small>highlights " + YT.motion.hint + "</small></a>" +
-      "</div>" +
-      '<a class="hl-all"' + ytLink(YT.all + encodeURIComponent(q + " highlights")) + ">hľadať na celom YouTube</a>" +
+      '<a class="hl-btn"' + ytLink(YT_SEARCH + encodeURIComponent(q)) + '><span class="hl-label"><span class="play" aria-hidden="true"></span>Highlights</span>' +
+      "<small>" + esc(q) + "</small></a>" +
+      resultHtml(g, date) +
       "</div></article>";
   }
 
@@ -354,7 +375,8 @@
     if (params[0]) return Promise.resolve(teamDetail(params[0]));
     var o = orderedTeams();
     var tile = function (t) {
-      return '<a class="team-tile" style="--tc:' + esc(t.color || "#2a6bf2") + '" href="#timy/' + esc(t.abbr) + '">' + logo(t, "") + "<span>" + esc(t.name) + "</span></a>";
+      return '<a class="team-tile" style="--tc:' + esc(t.color || "#2a6bf2") + '" href="#timy/' + esc(t.abbr) + '">' + logo(t, "") +
+        "<span>" + esc(t.name) + (t.gamesPlayed != null ? "<small>" + gamesLabel(t.gamesPlayed) + "</small>" : "") + "</span></a>";
     };
     var html = '<h2 class="section-title" style="margin-top:4px">Moje tímy</h2>';
     html += o.mine.length ? '<div class="team-grid">' + o.mine.map(tile).join("") + "</div>" : '<p class="empty">Nemáš vybrané žiadne tímy – nastav ich v Nastaveniach.</p>';
@@ -368,15 +390,17 @@
     return null;
   }
 
-  function playerCard(p, starts, games) {
+  function gamesLabel(n) { return n + (n === 1 ? " odohraný zápas" : n >= 2 && n <= 4 ? " odohrané zápasy" : " odohraných zápasov"); }
+  function profileHref(teamId, pid) { return "#hrac/" + encodeURIComponent(teamId) + "/" + encodeURIComponent(pid); }
+
+  function playerCard(p, teamId, starts, games) {
     var inj = injuryFor(p.id);
     var sub = [p.pos, starts != null ? "štartoval " + starts + " z " + games + " odohraných" : null].filter(Boolean).join(" · ");
     var chip = inj ? statusChip(inj) : "";
     var hs = p.headshot ? '<img class="hs" src="' + esc(p.headshot) + '" alt="" loading="lazy" referrerpolicy="no-referrer">' : '<div class="hs"></div>';
-    var name = inj ? '<a href="#recovery/' + esc(p.id) + '">' + esc(p.name) + "</a>" : esc(p.name);
-    return '<div class="player' + (starts != null ? " core" : "") + '">' + hs +
-      '<div><div class="nm">' + name + "</div><div class=\"sub\">" + esc(sub) + (chip ? " " + chip : "") + "</div></div>" +
-      '<div class="num">' + (p.jersey != null ? "#" + esc(p.jersey) : "") + "</div></div>";
+    return '<a class="player' + (starts != null ? " core" : "") + '" href="' + profileHref(teamId, p.id) + '">' + hs +
+      '<div><div class="nm">' + esc(p.name) + "</div><div class=\"sub\">" + esc(sub) + (chip ? " " + chip : "") + "</div></div>" +
+      '<div class="num">' + (p.jersey != null ? "#" + esc(p.jersey) : "") + "<span>›</span></div></a>";
   }
 
   function teamDetail(abbr) {
@@ -385,15 +409,16 @@
     var byId = {};
     t.roster.forEach(function (p) { byId[p.id] = p; });
     var core = t.core.map(function (c) {
-      return playerCard(byId[c.id] || { id: c.id, name: c.name }, c.starts, c.played != null ? c.played : t.coreGames);
+      return playerCard(byId[c.id] || { id: c.id, name: c.name }, t.id, c.starts, c.played != null ? c.played : t.coreGames);
     }).join("");
     var rest = t.roster.filter(function (p) { return !p.isCore; }).sort(function (a, b) {
       return (parseInt(a.jersey, 10) || 0) - (parseInt(b.jersey, 10) || 0);
-    }).map(function (p) { return playerCard(p, null); }).join("");
+    }).map(function (p) { return playerCard(p, t.id, null); }).join("");
     var window = (state.teamsMeta && state.teamsMeta.window) || 10;
     return '<a class="back" href="#timy">‹ Všetky tímy</a>' +
       '<div class="team-head" style="--tc:' + esc(t.color || "#2a6bf2") + '">' + logo(t, "") +
-      "<div><h1>" + esc(t.name) + "</h1><p>Súpiska: " + t.roster.length + " hráčov</p></div></div>" +
+      "<div><h1>" + esc(t.name) + "</h1><p>Súpiska: " + t.roster.length + " hráčov" +
+      (t.gamesPlayed != null ? " · " + gamesLabel(t.gamesPlayed) + " v sezóne" : "") + "</p></div></div>" +
       '<h2 class="section-title">Základná päťka</h2>' +
       (core ? '<div class="players">' + core + "</div>" : '<p class="note">Zatiaľ bez odohraných zápasov.</p>') +
       '<p class="note">Hráči, ktorí v posledných ' + t.coreGames + " zápasoch tímu (max. " + window + ") štartujú, keď hrajú – vynechané zápasy (zranenie) sa nepočítajú. Iba hráči na aktuálnej súpiske. Zdroj: ESPN box score.</p>" +
@@ -435,10 +460,11 @@
     if (p.returnSource) src.push("zdroj: " + esc(p.returnSource));
     if (p.espnReturnDate) src.push("ESPN odhad: " + shortDate(p.espnReturnDate));
     return '<article class="rec sev-' + esc(p.severity || "none") + '" id="p-' + esc(p.id) + '">' +
-      '<div class="top">' + sevIcon() + "<b>" + esc(p.name) + "</b>" + statusChip(p) + (p.isCore ? ' <span class="chip core">základná päťka</span>' : "") + "</div>" +
+      '<div class="top">' + sevIcon() + '<a class="pname" href="' + profileHref(p.teamId, p.id) + '">' + esc(p.name) + "</a>" +
+      statusChip(p) + (p.isCore ? ' <span class="chip core">základná päťka</span>' : "") + "</div>" +
       '<div class="why">' + esc(p.reason) + "</div>" +
       '<div class="ret"><span>Návrat</span><em>' + esc(p.expectedReturn) + "</em> <small>" +
-      esc((p.severityBasis === "espn" ? "podľa ESPN odhadu: " : "") + (p.severityLabel || "")) + "</small></div>" +
+      esc(p.severityLabel && p.severityLabel !== p.expectedReturn ? p.severityLabel : "") + "</small></div>" +
       (src.length ? '<div class="src">' + src.join(" · ") + "</div>" : "") + "</article>";
   }
 
@@ -446,6 +472,81 @@
     var el = document.getElementById("p-" + pid);
     if (!el && recFilter === "core") { recFilter = "all"; render(); return; }
     if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("flash"); }
+  }
+
+  // ---------------- Profil hráča ----------------
+  // Statické profily (tools/update_profiles.py, aktualizácia cca raz za pol roka). Štatistiky len z ukončených sezón.
+  function loadPlayers(teamId) {
+    if (state.players[teamId]) return Promise.resolve(state.players[teamId]);
+    return fetchJSON("data/players/" + teamId + ".json").then(function (d) { state.players[teamId] = d; return d; });
+  }
+  function draftSk(s) {
+    if (!s) return "nedraftovaný";
+    return s.replace(/Rd (\d+)/, "$1. kolo").replace(/Pk (\d+)/, "$1. voľba");
+  }
+  function ageSk(n) { return n + (n === 1 ? " rok" : n >= 2 && n <= 4 ? " roky" : " rokov"); }
+  function viewPlayer(params) {
+    var teamId = params[0], pid = params[1];
+    var t = state.teamById[teamId] || {};
+    var back = '<a class="back" href="#timy/' + esc(t.abbr || "") + '">‹ ' + esc(t.name || "Tím") + "</a>";
+    return loadPlayers(teamId).then(function (d) {
+      var p = d.players[pid];
+      if (!p) return back + '<p class="empty">Profil hráča zatiaľ nie je k dispozícii (pribudne pri najbližšej aktualizácii profilov).</p>';
+      var inj = injuryFor(pid);
+      var info = [
+        ["Vek", p.age != null ? ageSk(p.age) : null],
+        ["Narodený", p.born ? shortDate(p.born) + " " + p.born.slice(0, 4) : null],
+        ["Miesto narodenia", p.birthPlace],
+        ["Výška", p.heightCm ? p.heightCm + " cm" + (p.heightFt ? " (" + p.heightFt + ")" : "") : null],
+        ["Váha", p.weightKg ? p.weightKg + " kg" : null],
+        ["Pozícia", p.pos],
+        ["Číslo", p.jersey != null ? "#" + p.jersey : null],
+        ["Univerzita", p.college],
+        ["Draft", draftSk(p.draft)],
+        ["V NBA", p.seasonNo ? (p.seasonNo === 1 ? "nováčik (1. sezóna)" : p.seasonNo + ". sezóna") : null],
+      ].filter(function (x) { return x[1]; });
+      var html = back + '<div class="profile-head" style="--tc:' + esc(t.color || "#2a6bf2") + '">' +
+        (p.headshot ? '<img class="ph" src="' + esc(p.headshot) + '" alt="" referrerpolicy="no-referrer">' : "") +
+        "<div><h1>" + esc(p.name) + "</h1><p>" + logo(t, "") + esc(t.name || "") + "</p>" +
+        (inj ? '<a class="chip sev sev-' + esc(inj.severity || "none") + '" href="#recovery/' + esc(pid) + '">' + esc(inj.statusSk) + " ›</a>" : "") +
+        "</div></div>" +
+        '<dl class="facts">' + info.map(function (x) { return "<div><dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd></div>"; }).join("") + "</dl>";
+      if (p.accolades && p.accolades.length) {
+        html += '<h2 class="section-title">Úspechy</h2><ul class="accolades">' + p.accolades.map(function (a) {
+          return '<li><b>' + a.count + "×</b><span>" + esc(a.label) +
+            (a.years && a.years.length ? "<small>" + esc(a.years.join(", ")) + "</small>" : "") + "</span></li>";
+        }).join("") + "</ul>" +
+          '<p class="note">Zobrazené sú len ocenenia, pri ktorých sa zhodujú dva nezávislé zdroje (ESPN a Wikipédia, pri All-Star a tituloch aj súpisky zápasov a zoznam šampiónov).</p>';
+      }
+      if (p.career && p.career.length) {
+        html += '<h2 class="section-title">Kariéra</h2><ol class="career">' + p.career.map(function (c) {
+          var tt = state.teamById[c.teamId];
+          return "<li>" + (tt ? logo(tt, "") : "") + "<span><b>" + esc(c.team || c.abbr || "") + "</b><small>" +
+            esc(c.from === c.to ? c.from : c.from + " – " + c.to) + "</small></span></li>";
+        }).join("") + "</ol>";
+      }
+      if (p.totals) {
+        var x = p.totals;
+        html += '<h2 class="section-title">Štatistiky kariéry<span class="count">do ' + esc(x.through) + "</span></h2>" +
+          '<div class="totals">' +
+          [["zápasy", x.gp], ["body", x.pts.toLocaleString("sk-SK")], ["doskoky", x.reb.toLocaleString("sk-SK")], ["asistencie", x.ast.toLocaleString("sk-SK")],
+            ["bodov / zápas", x.ppg], ["doskokov / zápas", x.rpg], ["asistencií / zápas", x.apg]].map(function (k) {
+            return "<div><b>" + esc(k[1]) + "</b><span>" + esc(k[0]) + "</span></div>";
+          }).join("") + "</div>";
+        if (p.seasons && p.seasons.length) {
+          html += '<details class="seasons"><summary>Po sezónach (' + p.seasons.length + ")</summary><table><thead><tr><th>Sezóna</th><th>Tím</th><th>Z</th><th>B</th><th>D</th><th>A</th></tr></thead><tbody>" +
+            p.seasons.slice().reverse().map(function (r) {
+              return "<tr><td>" + esc(r.season) + "</td><td>" + esc(r.abbr || "") + "</td><td>" + esc(r.gp) + "</td><td>" + esc(r.ppg) +
+                "</td><td>" + esc(r.rpg) + "</td><td>" + esc(r.apg) + "</td></tr>";
+            }).join("") + "</tbody></table><p class=\"note\">Z = zápasy, B / D / A = priemer bodov, doskokov, asistencií na zápas.</p></details>";
+        }
+      }
+      html += '<p class="note">Aktuálna sezóna sa zámerne nezobrazuje (bez spoilerov). Profily aktualizované ' +
+        esc(fmtStamp.format(new Date(d.generatedAt))) + ". Zdroj: ESPN" + (p.wiki ? ', <a href="' + esc(p.wiki) + '" target="_blank" rel="noopener">Wikipédia</a>' : "") + ".</p>";
+      return html;
+    }, function () {
+      return back + '<p class="empty">Profily hráčov ešte nie sú k dispozícii.</p>';
+    });
   }
 
   // ---------------- Nastavenia ----------------
@@ -457,11 +558,7 @@
     var st = state.status || {};
     var html = '<label class="setting"><div><strong>Ukáž aj ostatné tímy</strong><p>Zápasy, súpisky a zranenia všetkých 30 tímov.</p></div>' +
       '<span class="switch"><input type="checkbox" data-showall' + (settings.showAll ? " checked" : "") + '><span></span></span></label>' +
-      '<label class="setting"><div><strong>Highlights otvárať v Brave</strong><p>' +
-      (IS_ANDROID ? "Odkazy sa otvoria priamo v Brave (nie v appke YouTube). Ak Brave nemáš, otvorí sa bežný prehliadač."
-        : "Na Androide otvorí odkazy priamo v Brave. Na počítači sa otvoria v prehliadači, v ktorom beží appka.") +
-      '</p></div><span class="switch"><input type="checkbox" data-brave' + (settings.browser === "brave" ? " checked" : "") +
-      "><span></span></span></label>" +
+
       '<h2 class="section-title">Sledované tímy<span class="count">' + settings.teams.length + " / 30</span></h2>" +
       '<div class="pick">' + all.map(function (t) {
         return '<label><input type="checkbox" data-team="' + esc(t.abbr) + '"' + (settings.teams.indexOf(t.abbr) !== -1 ? " checked" : "") + ">" +
@@ -477,12 +574,14 @@
       "<li>Synchronizácia beží automaticky každé ráno o 7:00.</li>" +
       ((st.errors || []).length ? "<li>Chyby: " + st.errors.map(esc).join("; ") + "</li>" : "") +
       "</ul>" +
-      '<p class="note">Appka zámerne neukazuje skóre, výsledky, bilancie, štatistiky, predĺženia ani kurzy.</p>';
+      '<p class="note">Highlights sa otvárajú v Brave (YouTube vyhľadávanie „tím vs tím highlights“). Skóre sa ukáže len pri konkrétnom zápase po dvojitom ťuknutí na „Zobraziť výsledok“. ' +
+      "Inak appka neukazuje výsledky, bilancie, štatistiky z aktuálnej sezóny ani kurzy.</p>";
     return Promise.resolve(html);
   }
 
   // ---------------- router ----------------
-  var views = { zapasy: viewGames, kalendar: viewCalendar, timy: viewTeams, recovery: viewRecovery, nastavenia: viewSettings };
+  var views = { zapasy: viewGames, kalendar: viewCalendar, timy: viewTeams, recovery: viewRecovery, nastavenia: viewSettings, hrac: viewPlayer };
+  var TAB_OF = { hrac: "timy" };
   function parseHash() {
     var h = (location.hash || "#zapasy").slice(1).split("/");
     return { tab: views[h[0]] ? h[0] : "zapasy", params: h.slice(1).map(decodeURIComponent) };
@@ -490,7 +589,7 @@
   function render() {
     var r = parseHash();
     document.querySelectorAll(".tabbar a").forEach(function (a) {
-      if (a.dataset.tab === r.tab) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+      if (a.dataset.tab === (TAB_OF[r.tab] || r.tab)) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
     });
     renderBanner();
     return views[r.tab](r.params).then(function (html) {
@@ -499,8 +598,24 @@
   }
 
   document.addEventListener("click", function (e) {
-    var t = e.target.closest("[data-go],[data-rf],[data-reset],[data-install]");
+    var t = e.target.closest("[data-go],[data-rf],[data-reset],[data-install],[data-reveal]");
     if (!t) return;
+    if (t.dataset.reveal) {
+      if (!t.classList.contains("armed")) {  // prvé ťuknutie len pripraví – žiadny náhodný spoiler
+        t.classList.add("armed");
+        t.textContent = "Naozaj? Ťukni znova a uvidíš skóre";
+        return;
+      }
+      var gid = t.dataset.reveal, date = t.dataset.date;
+      t.disabled = true;
+      t.textContent = "Načítavam…";
+      revealScore(gid, date).then(function (html) {
+        state.revealed[gid] = html;
+        var box = document.getElementById("res-" + gid);
+        if (box) box.innerHTML = html;
+      }, function () { t.disabled = false; t.textContent = "Výsledok sa nepodarilo načítať – skús znova"; });
+      return;
+    }
     if (t.hasAttribute("data-go") && t.dataset.go) location.hash = "#zapasy/" + t.dataset.go;
     if (t.dataset.rf) { recFilter = t.dataset.rf; render(); }
     if (t.hasAttribute("data-reset")) { settings.teams = DEFAULT_TEAMS.slice(); saveSettings(); render(); }
@@ -510,7 +625,6 @@
     var t = e.target;
     if (t.hasAttribute("data-pick")) location.hash = "#zapasy/" + t.value;
     if (t.hasAttribute("data-showall")) { settings.showAll = t.checked; saveSettings(); }
-    if (t.hasAttribute("data-brave")) { settings.browser = t.checked ? "brave" : "default"; saveSettings(); }
     if (t.dataset.team) {
       var i = settings.teams.indexOf(t.dataset.team);
       if (t.checked && i === -1) settings.teams.push(t.dataset.team);

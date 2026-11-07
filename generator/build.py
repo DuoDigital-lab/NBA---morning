@@ -13,7 +13,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from zoneinfo import ZoneInfo
 
-from . import availability, parse, recovery, spoilers
+from . import availability, parse, recovery, results, spoilers
 from .config import CALENDAR_DAYS, CORE_WINDOW, DATA_DIR, REBUILD_DAYS, STATE_DIR, US_TZ
 from .core_five import compute_core, missing_players
 from .espn import Espn, EspnError
@@ -116,6 +116,7 @@ class Builder:
                 sched = self.espn.schedule(t["id"], season)
                 out["completed"] = parse.completed_events_from_schedule(sched)
                 out["games"] = parse.games_from_schedule(sched)
+                out["scores"] = results.scores_from_events(sched.get("events"))
             except EspnError as e:
                 out["error"] = f"Rozpis {t['abbr']}: {e}"
             try:
@@ -125,13 +126,14 @@ class Builder:
             return out
 
         prev_teams = {t["id"]: t for t in (load_json(os.path.join(self.data_dir, "teams.json"), {}) or {}).get("teams", [])}
-        self.completed, self.rosters, self.season_games = {}, {}, {}
+        self.completed, self.rosters, self.season_games, self.scores = {}, {}, {}, {}
         for res in self._pmap(load, self.teams):
             if res.get("error"):
                 self.warnings.append(res["error"])
             self.completed[res["id"]] = res.get("completed") or []
             for g in res.get("games") or []:
                 self.season_games[g["id"]] = g
+            self.scores.update(res.get("scores") or {})
             roster = res.get("roster")
             if roster is None and res["id"] in prev_teams:
                 roster = [{k: v for k, v in p.items() if k != "isCore"} for p in prev_teams[res["id"]].get("roster", [])]
@@ -160,7 +162,9 @@ class Builder:
 
         def fetch(d):
             try:
-                return d, parse.games_from_scoreboard(self.espn.scoreboard(d.strftime("%Y%m%d")))
+                sb = self.espn.scoreboard(d.strftime("%Y%m%d"))
+                self.scores.update(results.scores_from_events(sb.get("events")))  # scoreboard má prednosť
+                return d, parse.games_from_scoreboard(sb)
             except EspnError as e:
                 # Záloha: tie isté zápasy sú aj v rozpisoch tímov (ESPN scoreboard občas pre niektorý deň zlyháva).
                 fallback = self.games_on(d)
@@ -202,6 +206,10 @@ class Builder:
                 written.append(d.isoformat())
             except spoilers.SpoilerError as e:
                 self.errors.append(str(e))
+            # Skutočné výsledky – samostatný súbor, appka ho načíta až na výslovné ťuknutie.
+            day_scores = {g["id"]: self.scores[g["id"]] for g in day["games"] if g["id"] in self.scores}
+            if day_scores:
+                write_json(os.path.join(self.data_dir, "scores", f"{d.isoformat()}.json"), day_scores, check=False)
         self.latest_day = written[-1] if written else None
         return boards
 
@@ -232,7 +240,7 @@ class Builder:
                 notes.append(f"Súpiska má {len(roster)} hráčov (bežne 15 + 3 two-way).")
             if len(core) < 5:
                 notes.append("Málo odohraných zápasov na spoľahlivú základnú päťku.")
-            out.append(dict(t, coreGames=n,
+            out.append(dict(t, coreGames=n, gamesPlayed=len(self.completed.get(t["id"]) or []),
                             core=[{"id": p, "name": self.pname(p), "starts": s, "played": g} for p, s, g in core],
                             roster=roster, notes=notes))
         write_json(os.path.join(self.data_dir, "teams.json"),

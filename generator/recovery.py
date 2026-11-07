@@ -207,7 +207,9 @@ def severity(item, note, today):
     if (item.get("status") or "") == "Day-To-Day" or note.get("expectedReturn") == "zo dňa na deň":
         return "dtd", "source"
     est, basis = return_estimate(item, note)
-    if est is None:
+    # Bez termínu zo správy = sivá "neznámy". Automatický ESPN dátum je často len najbližší zápas,
+    # farbu by skresľoval (zranení s neznámou dĺžkou by vyzerali ako "do mesiaca").
+    if est is None or basis == "espn":
         return "unknown", None
     left = (dt.date.fromisoformat(est) - today).days
     if left < 30:
