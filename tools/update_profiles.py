@@ -54,14 +54,14 @@ ESPN_AWARD = {
     "Clutch Player of the Year": "clutch", "NBA Cup MVP": "cup_mvp",
 }
 WIKI_AWARD = [  # (regex na cieľ/text odkazu v infoboxe, kľúč)
-    (r"^NBA champion$", "champion"), (r"Finals Most Valuable|Finals MVP", "finals_mvp"),
+    (r"^NBA champion$", "champion"), (r"^(Bill Russell )?NBA Finals (MVP|Most Valuable)", "finals_mvp"),
     (r"^NBA Most Valuable Player", "mvp"), (r"^NBA All-Star Game.*(MVP|Most Valuable)", "asg_mvp"),
     (r"^NBA All-Star$", "all_star"), (r"^All-NBA First Team", "all_nba_1"), (r"^All-NBA Second Team", "all_nba_2"),
     (r"^All-NBA Third Team", "all_nba_3"), (r"^NBA All-Defensive First Team", "all_def_1"),
     (r"^NBA All-Defensive Second Team", "all_def_2"), (r"^NBA Rookie of the Year", "roy"),
     (r"^NBA All-Rookie (First|Second) Team", "all_rookie"), (r"^NBA Defensive Player of the Year", "dpoy"),
     (r"^NBA Sixth Man of the Year", "sixth"), (r"^NBA Most Improved Player", "mip"),
-    (r"^NBA Clutch Player of the Year", "clutch"), (r"^NBA Cup MVP$", "cup_mvp"),
+    (r"Clutch Player of the Year|Jerry West Trophy", "clutch"), (r"^NBA Cup MVP$", "cup_mvp"),
 ]
 
 
@@ -255,9 +255,9 @@ def infobox_awards(text):
 def _years(rest):
     """Roky z '{{nasg|2005}}–{{nasg|2026}}', '[[2012 NBA Finals|2012]]', '{{nbay|2008|end}}' – rozsahy rozbalí."""
     toks = []
-    for m in re.finditer(r"\{\{nasg\|(\d{4})\}\}|\[\[\d{4} [^\]|]*\|(\d{4})\]\]|\{\{nbay\|(\d{4})[^}]*\}\}", rest):
-        y = int(m.group(1) or m.group(2) or m.group(3))
-        if m.group(3):  # {{nbay|2008|end}} = sezóna 2008-09 -> rok 2009
+    for m in re.finditer(r"\{\{(nasg|nbafy)\s*\|\s*(\d{4})[^}]*\}\}|\[\[\d{4} [^\]|]*\|(\d{4})\]\]|\{\{nbay\s*\|\s*(\d{4})[^}]*\}\}", rest):
+        y = int(m.group(2) or m.group(3) or m.group(4))
+        if m.group(4):  # {{nbay|2008|end}} = sezóna 2008-09 -> rok 2009
             y += 1
         toks.append((y, m.start(), m.end()))
     years = []
