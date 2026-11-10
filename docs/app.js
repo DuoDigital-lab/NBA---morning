@@ -511,6 +511,11 @@
         esc(yearRanges(g.years)) + "</span>";
     }).join("") + "</span>";
   }
+  // Pozícia zo súpisky (PG/SG/SF/PF/C podľa ESPN depth chartu, aktualizuje sa denne); profil má len všeobecnú.
+  function rosterPos(team, pid) {
+    var r = ((team && team.roster) || []).filter(function (x) { return x.id === pid; })[0];
+    return r && r.pos;
+  }
   function ageSk(n) { return n + (n === 1 ? " rok" : n >= 2 && n <= 4 ? " roky" : " rokov"); }
   function viewPlayer(params) {
     var teamId = params[0], pid = params[1];
@@ -526,7 +531,7 @@
         ["Miesto narodenia", p.birthPlace],
         ["Výška", p.heightCm ? p.heightCm + " cm" + (p.heightFt ? " (" + p.heightFt + ")" : "") : null],
         ["Váha", p.weightKg ? p.weightKg + " kg" : null],
-        ["Pozícia", p.pos],
+        ["Pozícia", rosterPos(t, pid) || p.pos],
         ["Číslo", p.jersey != null ? "#" + p.jersey : null],
         ["Univerzita", p.college],
         ["Draft", draftSk(p.draft)],

@@ -123,6 +123,12 @@ class Builder:
                 out["roster"] = parse.roster_from_api(self.espn.roster(t["id"]))
             except EspnError as e:
                 out["error"] = (out.get("error", "") + f" Súpiska {t['abbr']}: {e}").strip()
+            try:  # presné pozície PG/SG/SF/PF/C (súpiska má len G/F/C)
+                pos = parse.positions_from_depthchart(self.espn.depthchart(t["id"], season))
+                for p in out.get("roster") or []:
+                    p["pos"] = pos.get(p["id"], p["pos"])
+            except EspnError:
+                pass
             return out
 
         prev_teams = {t["id"]: t for t in (load_json(os.path.join(self.data_dir, "teams.json"), {}) or {}).get("teams", [])}

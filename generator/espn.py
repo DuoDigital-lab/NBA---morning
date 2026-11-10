@@ -58,5 +58,8 @@ class Espn:
     def roster(self, team_id):
         return self._get(f"{SITE}/teams/{team_id}/roster")
 
+    def depthchart(self, team_id, season):
+        return self._get(f"{CORE}/seasons/{season}/teams/{team_id}/depthcharts")
+
     def injuries(self):
         return self._get(f"{SITE}/injuries")

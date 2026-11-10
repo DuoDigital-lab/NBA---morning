@@ -162,6 +162,21 @@ def roster_from_api(roster_json):
     return out
 
 
+def positions_from_depthchart(dc):
+    """{player_id: 'PG'|'SG'|'SF'|'PF'|'C'} z ESPN depth chartu (pri viacerých pozíciách tá s najlepším poradím)."""
+    best = {}
+    for item in (dc or {}).get("items") or []:
+        for key, v in (item.get("positions") or {}).items():
+            for a in v.get("athletes") or []:
+                m = re.search(r"/athletes/(\d+)", (a.get("athlete") or {}).get("$ref") or "")
+                if not m:
+                    continue
+                pid, rank = m.group(1), a.get("rank") or 99
+                if pid not in best or rank < best[pid][1]:
+                    best[pid] = (key.upper(), rank)
+    return {pid: pos for pid, (pos, _) in best.items()}
+
+
 def _athlete_id(ath):
     if ath.get("id"):
         return _s(ath["id"])
