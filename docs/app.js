@@ -486,6 +486,31 @@
     if (!s) return "nedraftovaný";
     return s.replace(/Rd (\d+)/, "$1. kolo").replace(/Pk (\d+)/, "$1. voľba");
   }
+  // "CLE 2009–2010 · MIA 2012–2013" (roky = koniec sezóny, súvislé roky ako rozsah).
+  function yearRanges(ys) {
+    var out = [], start = null, prev = null;
+    ys.forEach(function (y) {
+      if (start === null) { start = prev = y; return; }
+      if (y === prev + 1) { prev = y; return; }
+      out.push(start === prev ? "" + start : start + "–" + prev); start = prev = y;
+    });
+    if (start !== null) out.push(start === prev ? "" + start : start + "–" + prev);
+    return out.join(", ");
+  }
+  function accTeams(a) {
+    var rows = a.byYear || (a.years || []).map(function (y) { return { year: y, team: null }; });
+    if (!rows.length) return "";
+    var groups = [], idx = {};
+    rows.forEach(function (r) {
+      var k = r.team || "";
+      if (!(k in idx)) { idx[k] = groups.length; groups.push({ team: r.team, years: [] }); }
+      groups[idx[k]].years.push(r.year);
+    });
+    return '<span class="acc-teams">' + groups.map(function (g) {
+      return '<span class="acc-team">' + (g.team ? "<i>" + esc(g.team) + "</i>" : "") +
+        esc(yearRanges(g.years)) + "</span>";
+    }).join("") + "</span>";
+  }
   function ageSk(n) { return n + (n === 1 ? " rok" : n >= 2 && n <= 4 ? " roky" : " rokov"); }
   function viewPlayer(params) {
     var teamId = params[0], pid = params[1];
@@ -515,8 +540,7 @@
         '<dl class="facts">' + info.map(function (x) { return "<div><dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd></div>"; }).join("") + "</dl>";
       if (p.accolades && p.accolades.length) {
         html += '<h2 class="section-title">Úspechy</h2><ul class="accolades">' + p.accolades.map(function (a) {
-          return '<li><b>' + a.count + "×</b><span>" + esc(a.label) +
-            (a.years && a.years.length ? "<small>" + esc(a.years.join(", ")) + "</small>" : "") + "</span></li>";
+          return '<li><b>' + a.count + "×</b><span>" + esc(a.label) + accTeams(a) + "</span></li>";
         }).join("") + "</ul>" +
           '<p class="note">Zobrazené sú len ocenenia, pri ktorých sa zhodujú dva nezávislé zdroje (ESPN a Wikipédia, pri All-Star a tituloch aj súpisky zápasov a zoznam šampiónov).</p>';
       }

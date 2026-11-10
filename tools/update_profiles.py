@@ -128,7 +128,8 @@ class Profiles:
             d = self.espn._get(f"{V3}/{pid}/stats")
         except EspnError:
             return {"career": [], "seasons": [], "totals": None}
-        names = {str(t.get("id")): (t.get("displayName"), t.get("abbreviation")) for t in (d.get("teams") or {}).values()}
+        # Podľa slugu, nie id: franšíza má jedno id cez všetky mená (Seattle aj Oklahoma = 25).
+        by_slug = {slug: (t.get("displayName"), t.get("abbreviation")) for slug, t in (d.get("teams") or {}).items()}
         cats = {c.get("name"): c for c in d.get("categories") or []}
         avg, tot = cats.get("averages") or {}, cats.get("totals") or {}
         al, tl = avg.get("labels") or [], tot.get("labels") or []
@@ -137,8 +138,10 @@ class Profiles:
         stints = []
         for r in avg.get("statistics") or []:
             year, tid = r["season"]["year"], str(r.get("teamId"))
-            name, abbr = names.get(tid, (None, None))
-            if not stints or stints[-1]["teamId"] != tid:
+            name, abbr = by_slug.get(r.get("teamSlug"), (None, None))
+            if not abbr:  # súhrnný riadok sezóny pri trejde (oba tímy spolu) – inak by sa zápasy rátali dvakrát
+                continue
+            if not stints or stints[-1]["teamId"] != tid or stints[-1]["abbr"] != abbr:
                 stints.append({"teamId": tid, "team": name, "abbr": abbr, "from": r["season"]["displayName"], "to": r["season"]["displayName"]})
             else:
                 stints[-1]["to"] = r["season"]["displayName"]
@@ -169,12 +172,13 @@ class Profiles:
             d = self.espn._get(f"{CORE}/athletes/{pid}/awards?limit=200")
         except EspnError:
             return {}
-        counts = Counter()
+        years = defaultdict(list)  # kľúč -> koncové roky sezón (ESPN "seasons/2009/awards" = sezóna 2008-09)
         for it in d.get("items") or []:
             key = ESPN_AWARD.get(self.award_name(it["$ref"]) or "")
             if key:
-                counts[key] += 1
-        return dict(counts)
+                m = re.search(r"/seasons/(\d{4})/", it["$ref"])
+                years[key].append(int(m.group(1)) if m else None)
+        return {k: sorted(y for y in v if y) for k, v in years.items()}
 
 
 # ---------------------------- Wikipédia ----------------------------
@@ -288,6 +292,22 @@ def link_pattern(title):
 
 # ---------------------------- hlavný beh ----------------------------
 
+def team_for_year(profile, year):
+    """Skratka tímu, za ktorý hráč hral v sezóne končiacej rokom `year` (pri trejde v sezóne oba, napr. 'BKN/HOU')."""
+    abbrs = [s["abbr"] for s in profile.get("seasons") or [] if s.get("abbr") and int(s["season"][:4]) + 1 == year]
+    if not abbrs:
+        abbrs = [st["abbr"] for st in profile.get("career") or [] if st.get("abbr") and
+                 int(st["from"][:4]) + 1 <= year <= int(st["to"][:4]) + 1]
+    return "/".join(dict.fromkeys(abbrs)) or None
+
+
+def with_teams(profile, entry):
+    # NBA Cup sa hrá v decembri: sezóna 2023-24 -> zobraziť rok 2023 (ostatné ocenenia = koncový rok sezóny).
+    shift = 1 if entry["key"] == "cup_mvp" else 0
+    entry["byYear"] = [{"year": y - shift, "team": team_for_year(profile, y)} for y in entry.get("years") or []]
+    return entry
+
+
 def verify(profile, wiki, allstar_pages, champions):
     """Do profilu doplní len ocenenia potvrdené dvoma zdrojmi. Vracia zoznam nesúladov."""
     espn = profile.pop("espnAwards", {}) or {}
@@ -295,15 +315,16 @@ def verify(profile, wiki, allstar_pages, champions):
     title = profile.pop("_wiki", None)
     for key, (label, order) in ACCOLADES.items():
         w = wiki.get(key)
-        e = espn.get(key)
+        e_years = espn.get(key) or []
+        e = len(e_years)
         if key == "all_star":
             if not w or not title:
                 continue
             pat = link_pattern(title)
             found = [y for y in w[1] if pat.search(allstar_pages.get(f"{y} NBA All-Star Game", ""))]
             if w[1] and len(found) == len(w[1]) == w[0]:
-                accolades.append({"key": key, "label": label, "count": w[0], "years": found,
-                                  "sources": "Wikipédia + články o All-Star zápasoch"})
+                accolades.append(with_teams(profile, {"key": key, "label": label, "count": w[0], "years": found,
+                                                      "sources": "Wikipédia + články o All-Star zápasoch"}))
             else:
                 issues.append(f"{profile['name']}: All-Star {w[0]} (infobox, roky {len(w[1])}) vs {len(found)} potvrdených")
         elif key == "champion":
@@ -321,15 +342,16 @@ def verify(profile, wiki, allstar_pages, champions):
                 if champ and team and champ.split()[-1] == team.split()[-1]:
                     ok += 1
             if w[1] and ok == w[0] == len(w[1]):
-                accolades.append({"key": key, "label": label, "count": ok, "years": sorted(w[1]),
-                                  "sources": "Wikipédia + ESPN kariéra + zoznam šampiónov"})
+                accolades.append(with_teams(profile, {"key": key, "label": label, "count": ok, "years": sorted(w[1]),
+                                                      "sources": "Wikipédia + ESPN kariéra + zoznam šampiónov"}))
             else:
                 issues.append(f"{profile['name']}: tituly {w[0]} (infobox) vs {ok} overených")
         else:
             if not w and not e:
                 continue
             if w and e and w[0] == e:
-                accolades.append({"key": key, "label": label, "count": e, "sources": "ESPN + Wikipédia"})
+                accolades.append(with_teams(profile, {"key": key, "label": label, "count": e, "years": e_years,
+                                                      "sources": "ESPN + Wikipédia"}))
             else:
                 issues.append(f"{profile['name']}: {label} ESPN {e or 0} vs Wikipédia {w[0] if w else 0}")
     accolades.sort(key=lambda a: ACCOLADES[a["key"]][1])

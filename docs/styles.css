@@ -384,3 +384,6 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; letter-spacing:
 .hl-btn .hl-label { display: inline-flex; align-items: center; }
 .mp .dnp { font-size: 10px; font-weight: 800; letter-spacing: .08em; padding: 1px 6px; border-radius: 999px; background: rgba(255,255,255,.12); color: #e9edf7; }
 .team-grid.other .team-tile { opacity: .82; }
+.acc-teams { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.acc-team { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--card-2); font-size: 12px; color: #cfd6ea; }
+.acc-team i { font-style: normal; font-weight: 700; color: var(--text); }
