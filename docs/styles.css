@@ -382,3 +382,5 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; letter-spacing:
 .seasons th { color: var(--muted); font-weight: 500; }
 .rec .pname { color: inherit; font-weight: 700; text-decoration: none; border-bottom: 1px dotted var(--muted); }
 .hl-btn .hl-label { display: inline-flex; align-items: center; }
+.mp .dnp { font-size: 10px; font-weight: 800; letter-spacing: .08em; padding: 1px 6px; border-radius: 999px; background: rgba(255,255,255,.12); color: #e9edf7; }
+.team-grid.other .team-tile { opacity: .82; }

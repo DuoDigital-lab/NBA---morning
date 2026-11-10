@@ -130,8 +130,10 @@
   function missingPill(m) {
     var inj = injuryFor(m.id);
     var sev = sevOf(m.id);
-    var title = inj ? inj.statusSk + " · návrat: " + inj.expectedReturn + (inj.severityBasis === "espn" ? " (farba podľa ESPN odhadu)" : "") : "bez záznamu o zranení";
-    return '<a class="mp sev-' + sev + '" href="#recovery/' + esc(m.id) + '" title="' + esc(title) + '">' + sevIcon() + esc(m.name) + "</a>";
+    // Bez záznamu o zranení (tréner ho nenasadil / dôvod zatiaľ neznámy) = DNP.
+    var title = inj && inj.status ? inj.statusSk + " · návrat: " + inj.expectedReturn : "DNP – bez záznamu o zranení";
+    var dnp = inj && inj.status ? "" : ' <span class="dnp">DNP</span>';
+    return '<a class="mp sev-' + sev + '" href="#recovery/' + esc(m.id) + '" title="' + esc(title) + '">' + sevIcon() + esc(m.name) + dnp + "</a>";
   }
   function sevLegend() {
     return '<div class="legend" aria-label="Legenda farieb">' + SEVERITY.map(function (s) {
@@ -368,7 +370,7 @@
     var rest = state.teams.filter(function (t) { return settings.teams.indexOf(t.abbr) === -1; });
     var byName = function (a, b) { return a.name.localeCompare(b.name, "en"); };
     mine.sort(byName); rest.sort(byName);
-    return { mine: mine, rest: settings.showAll ? rest : [] };
+    return { mine: mine, rest: rest };
   }
 
   function viewTeams(params) {
@@ -378,9 +380,9 @@
       return '<a class="team-tile" style="--tc:' + esc(t.color || "#2a6bf2") + '" href="#timy/' + esc(t.abbr) + '">' + logo(t, "") +
         "<span>" + esc(t.name) + (t.gamesPlayed != null ? "<small>" + gamesLabel(t.gamesPlayed) + "</small>" : "") + "</span></a>";
     };
-    var html = '<h2 class="section-title" style="margin-top:4px">Moje tímy</h2>';
+    var html = '<h2 class="section-title" style="margin-top:4px">Sledované tímy<span class="count">' + o.mine.length + "</span></h2>";
     html += o.mine.length ? '<div class="team-grid">' + o.mine.map(tile).join("") + "</div>" : '<p class="empty">Nemáš vybrané žiadne tímy – nastav ich v Nastaveniach.</p>';
-    if (o.rest.length) html += '<h2 class="section-title">Ostatné tímy</h2><div class="team-grid">' + o.rest.map(tile).join("") + "</div>";
+    if (o.rest.length) html += '<h2 class="section-title">Nesledované tímy<span class="count">' + o.rest.length + '</span></h2><div class="team-grid other">' + o.rest.map(tile).join("") + "</div>";
     return Promise.resolve(html);
   }
 
@@ -519,7 +521,7 @@
           '<p class="note">Zobrazené sú len ocenenia, pri ktorých sa zhodujú dva nezávislé zdroje (ESPN a Wikipédia, pri All-Star a tituloch aj súpisky zápasov a zoznam šampiónov).</p>';
       }
       if (p.career && p.career.length) {
-        html += '<h2 class="section-title">Kariéra</h2><ol class="career">' + p.career.map(function (c) {
+        html += '<h2 class="section-title">Kariéra</h2><ol class="career">' + p.career.slice().reverse().map(function (c) {
           var tt = state.teamById[c.teamId];
           return "<li>" + (tt ? logo(tt, "") : "") + "<span><b>" + esc(c.team || c.abbr || "") + "</b><small>" +
             esc(c.from === c.to ? c.from : c.from + " – " + c.to) + "</small></span></li>";

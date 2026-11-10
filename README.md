@@ -37,7 +37,8 @@ GitHub Actions (denne 7:00) ──► python -m generator.build ──► docs/d
 * **Kto hral:** výhradne box score. Hráč „hral“, ak má v box score riadok so štatistikami a nie je DNP.
   Hráč, ktorý v box score úplne chýba (zranení často nie sú uvedení vôbec), sa počíta ako „nehral“.
 * **Základná päťka** = hráči s najvyšším podielom štartov v zápasoch, ktoré **odohrali** (posledných ≤20 zápasov tímu).
-  Zápasy, ktoré hráč vynechal kvôli zraneniu, sa mu nepočítajú proti nemu. Zranená hviezda (napr. 2 štarty z 2) preto
+  Zápasy, ktoré hráč vynechal kvôli zraneniu, sa mu nepočítajú proti nemu. Pri sporných prípadoch rozhoduje **priamy súboj**:
+  kto štartoval v zápasoch, ktoré odohrali obaja. Hráč zo základnej päťky, ktorý nehral a nie je v injury reporte, má štítok **DNP**. Zranená hviezda (napr. 2 štarty z 2) preto
   ostáva v päťke a dočasná náhrada (3 štarty z 5) nie. Hráč posunutý na lavičku hrá bez štartov a z päťky vypadne.
   Počíta sa k času pred daným zápasom, takže história je konzistentná. Hráč, ktorý už nie je na súpiske, sa vynechá.
 * **Spoiler poistka:** parser skladá výstup iba z vymenovaných polí (whitelist). Pred každým zápisom

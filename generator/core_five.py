@@ -1,14 +1,15 @@
 """Základná päťka = hráči, ktorí v posledných N zápasoch tímu štartujú, KEĎ HRAJÚ.
 
-Zápasy, ktoré hráč vynechal (zranenie, odpočinok), sa mu nepočítajú proti nemu. Hviezda, ktorá
-odštartovala 2 zápasy a potom sa zranila (2 štarty z 2 odohraných), ostáva v základnej päťke a jej
-dočasná náhrada (napr. 3 štarty z 5) nie. Hráč, ktorého tréner posunul na lavičku, hrá ďalej bez štartov,
-takže jeho podiel štartov klesá a z päťky prirodzene vypadne.
-
-Poradie: podiel štartov = štarty / (odohrané + 1). To "+1" tlmí náhodné jednorazové štarty
-(1 z 1 = 0,5, kým pravidelný štartér 9 z 9 = 0,9). Pri rovnosti rozhoduje viac štartov, potom novší štart.
+Poradie hráčov A a B:
+1. Priamy súboj: v zápasoch, ktoré odohrali OBAJA, kto štartoval, keď ten druhý nie. Tak zranená hviezda
+   (Kawhi: 2 zápasy, 2 štarty, náhradník vtedy z lavičky) ostane pred svojou náhradou, aj keď náhrada
+   medzitým nazbiera viac štartov. A hráča, ktorého tréner posunul na lavičku, predbehne ten, kto ho nahradil.
+2. Podiel štartov v odohraných zápasoch (vynechané zápasy sa nepočítajú proti nemu).
+3. Viac štartov, potom novší štart.
+Jednorazové štarty (1 štart, keď má tím aspoň 3 zápasy) sa nepočítajú – sú to zvyčajne náhrady za zranených.
 """
 from collections import Counter
+from functools import cmp_to_key
 
 
 def compute_core(lineups, team_id, roster_ids=None, n=5):
@@ -17,18 +18,45 @@ def compute_core(lineups, team_id, roster_ids=None, n=5):
     Vracia [(player_id, starts, played)]."""
     starts, played = Counter(), Counter()
     last = {}
+    games = []  # (množina hrajúcich, množina štartérov)
     for i, lu in enumerate(lineups):
         side = lu.get(team_id) if lu else None
         if not side:
             continue
-        on_court = set(side.get("played") or []) | set(side["starters"])
+        starters = set(side["starters"])
+        on_court = set(side.get("played") or []) | starters
+        games.append((on_court, starters))
         for pid in on_court:
             played[pid] += 1
-        for pid in side["starters"]:
+        for pid in starters:
             starts[pid] += 1
             last[pid] = i
-    candidates = [p for p in starts if roster_ids is None or p in roster_ids]
-    ranked = sorted(candidates, key=lambda p: (-starts[p] / (played[p] + 1), -starts[p], -last[p]))
+    min_starts = 2 if len(games) >= 3 else 1
+    candidates = [p for p in starts if starts[p] >= min_starts and (roster_ids is None or p in roster_ids)]
+    if len(candidates) < n:  # málo dát (začiatok sezóny) – doplň aj jednorazovými štartérmi
+        candidates += [p for p in starts if p not in candidates and (roster_ids is None or p in roster_ids)]
+
+    def head_to_head(a, b):
+        a_over = b_over = 0
+        for on_court, starters in games:
+            if a in on_court and b in on_court:
+                if a in starters and b not in starters:
+                    a_over += 1
+                elif b in starters and a not in starters:
+                    b_over += 1
+        return a_over - b_over
+
+    def compare(a, b):
+        h = head_to_head(a, b)
+        if h:
+            return -h
+        ka = (starts[a] / played[a], starts[a], last[a])
+        kb = (starts[b] / played[b], starts[b], last[b])
+        if ka != kb:
+            return -1 if ka > kb else 1
+        return -1 if a < b else (1 if a > b else 0)  # stabilné poradie pri úplnej zhode
+
+    ranked = sorted(candidates, key=cmp_to_key(compare))
     return [(p, starts[p], played[p]) for p in ranked[:n]]
 
 

@@ -44,6 +44,20 @@ class CoreFiveTest(unittest.TestCase):
         self.assertIn("new", [c[0] for c in core])     # nový štartér 6/6
         self.assertNotIn("star", [c[0] for c in core])  # hrá z lavičky: 2 štarty z 8
 
+    def test_injured_star_beats_replacement_with_more_starts(self):
+        four = ["a", "b", "c", "d"]
+        games = [lu("1", four + ["kawhi"], four + ["kawhi", "walter"]) for _ in range(2)]   # Walter z lavičky
+        games += [lu("1", four + ["walter"], four + ["walter"]) for _ in range(8)]           # Kawhi zranený
+        core = [c[0] for c in compute_core(games, "1")]
+        self.assertIn("kawhi", core)
+        self.assertNotIn("walter", core)
+
+    def test_one_off_spot_start_ignored(self):
+        five = ["a", "b", "c", "d", "e"]
+        games = [lu("1", five, five + ["spot"]) for _ in range(5)]
+        games.append(lu("1", ["a", "b", "c", "d", "spot"], ["a", "b", "c", "d", "spot"]))   # e chýba, 1 štart náhrady
+        self.assertEqual(sorted(c[0] for c in compute_core(games, "1")), five)
+
     def test_missing_includes_absent_and_dnp(self):
         core = [("a", 3), ("b", 3), ("c", 3), ("d", 3), ("e", 3)]
         side = {"starters": ["a", "b", "c", "x", "y"], "played": ["a", "b", "c", "x", "y"]}
