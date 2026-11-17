@@ -6,3 +6,5 @@ __pycache__/
 _research/
 # lokálne nastavenia Claude Code
 .claude/
+# dočasné súbory testov
+tests/_tmp/

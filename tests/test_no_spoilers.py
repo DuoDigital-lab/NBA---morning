@@ -25,15 +25,19 @@ class GeneratedOutputTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         os.environ.pop("ANTHROPIC_API_KEY", None)
-        cls.tmp = tempfile.mkdtemp(prefix="nba-test-")
+        # dočasný priečinok vnútri projektu (projekt sa nemá dotýkať súborov mimo svojho priečinka)
+        os.makedirs(os.path.join(ROOT, "tests", "_tmp"), exist_ok=True)
+        cls.tmp = tempfile.mkdtemp(prefix="nba-test-", dir=os.path.join(ROOT, "tests", "_tmp"))
         cls.data = os.path.join(cls.tmp, "data")
         cls.state = os.path.join(cls.tmp, "state")
         b = Builder(FixtureEspn(), cls.data, cls.state, today_et=dt.date(2026, 10, 31), workers=2)
         cls.status = b.run()
         every = sorted(glob.glob(os.path.join(cls.data, "**", "*.json"), recursive=True))
         # Skóre smie byť len v data/scores/ (načíta sa až na výslovné ťuknutie); všetko ostatné je bez spoilerov.
+        # Skóre a box score smú byť len v data/scores/ a data/boxscores/ (načítajú sa až po odkrytí výsledku).
         cls.score_files = [f for f in every if os.sep + "scores" + os.sep in f]
-        cls.files = [f for f in every if f not in cls.score_files]
+        cls.box_files = [f for f in every if os.sep + "boxscores" + os.sep in f]
+        cls.files = [f for f in every if f not in cls.score_files and f not in cls.box_files]
 
     @classmethod
     def tearDownClass(cls):
@@ -66,6 +70,16 @@ class GeneratedOutputTest(unittest.TestCase):
         with open(self.score_files[0], encoding="utf-8") as f:
             scores = json.load(f)
         self.assertEqual(scores, {"401909277": {"away": 127, "home": 131, "ot": 1}})
+
+    def test_boxscore_only_in_separate_files(self):
+        self.assertEqual([os.path.basename(f) for f in self.box_files], ["2026-10-30.json"])
+        with open(self.box_files[0], encoding="utf-8") as f:
+            box = json.load(f)["401909277"]
+        self.assertEqual(set(box), {"27", "30"})
+        wsh = box["27"]
+        self.assertEqual(wsh["labels"][:2], ["MIN", "PTS"])
+        self.assertEqual(sum(p["st"] for p in wsh["players"]), 5)
+        self.assertIn("Anthony Gill", [p["name"] for p in wsh["dnp"]])
 
     def test_game_card_content(self):
         with open(os.path.join(self.data, "days", "2026-10-30.json"), encoding="utf-8") as f:
@@ -114,9 +128,10 @@ class StaticFrontendTest(unittest.TestCase):
     def test_frontend_loads_scores_only_on_reveal(self):
         with open(os.path.join(DOCS, "app.js"), encoding="utf-8") as f:
             src = f.read()
-        self.assertEqual(src.count("data/scores/"), 1)
-        start = src.index("function revealScore(")
-        self.assertTrue(start < src.index("data/scores/") < src.index("\n  }", start))
+        for url, fn in (("data/scores/", "function revealScore("), ("data/boxscores/", "function loadBox(")):
+            self.assertEqual(src.count(url), 1, url)
+            start = src.index(fn)
+            self.assertTrue(start < src.index(url) < src.index("\n  }", start), url)
 
     def test_player_profiles_have_no_current_season(self):
         for path in glob.glob(os.path.join(DOCS, "data", "players", "*.json")):
@@ -131,7 +146,7 @@ class StaticFrontendTest(unittest.TestCase):
 
     def test_committed_data_is_clean(self):
         for path in glob.glob(os.path.join(DOCS, "data", "**", "*.json"), recursive=True):
-            if os.sep + "scores" + os.sep in path or os.sep + "players" + os.sep in path:
+            if any(os.sep + d + os.sep in path for d in ("scores", "boxscores", "players")):
                 continue
             with open(path, encoding="utf-8") as f:
                 self.assertEqual(spoilers.find_violations(json.load(f)), [], path)

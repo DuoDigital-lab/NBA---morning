@@ -124,6 +124,8 @@ Jedno tlačidlo otvorí YouTube vyhľadávanie „Hornets vs Wizards highlights 
 
 Skóre je **len** v `docs/data/scores/<deň>.json` (`generator/results.py`). Appka ho načíta až po dvojitom ťuknutí na
 „Zobraziť výsledok“ pri konkrétnom zápase. Všetky ostatné dáta zostávajú bez skóre a testy to strážia.
+Pod odkrytým výsledkom je tlačidlo **Box score** (oba tímy, MIN/PTS/REB/AST/STL/BLK/TO/FG/3PT/FT/+/-, lavička, DNP s dôvodom).
+Dáta sú v `docs/data/boxscores/<deň>.json`, berú sa z rovnakého ESPN volania ako zostavy – žiadne požiadavky ani Claude navyše.
 
 ## Profily hráčov (ručne, cca raz za pol roka)
 

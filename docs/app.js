@@ -48,7 +48,7 @@
 
   // ---------------- dáta ----------------
   var state = { teams: [], teamById: {}, index: null, injuries: null, upcoming: null, status: null, days: {}, fromCache: false, failed: [],
-    revealed: {}, players: {} };
+    revealed: {}, players: {}, boxes: {} };
 
   function fetchJSON(path) {
     return fetch(path, { cache: "no-cache" }).then(function (r) {
@@ -237,8 +237,45 @@
       var a = state.teamById[g.away.teamId] || {}, h = state.teamById[g.home.teamId] || {};
       var ot = r.ot ? '<small>' + (r.ot === 1 ? "po predĺžení" : "po " + r.ot + " predĺženiach") + "</small>" : "";
       return '<div class="res-score"><span>' + esc(a.abbr) + '</span><b>' + r.away + '</b><i>:</i><b>' + r.home +
-        '</b><span>' + esc(h.abbr) + "</span></div>" + ot;
+        '</b><span>' + esc(h.abbr) + "</span></div>" + ot +
+        '<button type="button" class="box-btn" data-box="' + esc(gameId) + '" data-date="' + esc(date) + '">Box score ▾</button>' +
+        '<div class="box" id="box-' + esc(gameId) + '" hidden></div>';
     });
+  }
+
+  // Box score: oddelený súbor, načíta sa až z odkrytého výsledku.
+  function loadBox(date) {
+    if (state.boxes[date]) return Promise.resolve(state.boxes[date]);
+    return fetchJSON("data/boxscores/" + date + ".json").then(function (d) { state.boxes[date] = d; return d; });
+  }
+  var BOX_COLS = ["MIN", "PTS", "REB", "AST", "STL", "BLK", "TO", "FG", "3PT", "FT", "+/-"];
+  function renderBox(gid, date, teamId) {
+    var all = state.boxes[date] || {}, box = all[gid];
+    var g = (state.days[date] || { games: [] }).games.filter(function (x) { return x.id === gid; })[0];
+    if (!box || !g) return '<p class="res-none">Box score zatiaľ nie je k dispozícii.</p>';
+    var ids = [g.away.teamId, g.home.teamId].filter(function (x) { return box[x]; });
+    teamId = teamId && box[teamId] ? teamId : ids[0];
+    var side = box[teamId];
+    var idx = BOX_COLS.map(function (c) { return side.labels.indexOf(c); });
+    var cells = function (arr) { return idx.map(function (i) { return "<td>" + esc(i >= 0 && arr[i] != null && arr[i] !== "" ? arr[i] : "–") + "</td>"; }).join(""); };
+    var row = function (p) {
+      return '<tr><th><a href="' + profileHref(teamId, p.id) + '">' + esc(p.name) + "</a><small>" + esc(p.pos || "") + "</small></th>" + cells(p.s) + "</tr>";
+    };
+    var starters = side.players.filter(function (p) { return p.st; }), bench = side.players.filter(function (p) { return !p.st; });
+    var tabs = '<div class="box-tabs">' + ids.map(function (id) {
+      var t = state.teamById[id] || {};
+      return '<button type="button" data-boxteam="' + esc(id) + '" data-boxgame="' + esc(gid) + '" data-date="' + esc(date) + '"' +
+        (id === teamId ? ' aria-pressed="true"' : ' aria-pressed="false"') + ">" + esc(t.abbr || id) + "</button>";
+    }).join("") + "</div>";
+    var head = "<tr><th>Hráč</th>" + BOX_COLS.map(function (c) { return "<td>" + c + "</td>"; }).join("") + "</tr>";
+    var table = '<div class="box-scroll"><table class="box-table"><thead>' + head + "</thead><tbody>" +
+      '<tr class="grp"><th colspan="' + (BOX_COLS.length + 1) + '">Základná päťka</th></tr>' + starters.map(row).join("") +
+      (bench.length ? '<tr class="grp"><th colspan="' + (BOX_COLS.length + 1) + '">Lavička</th></tr>' + bench.map(row).join("") : "") +
+      '<tr class="tot"><th>Spolu</th>' + cells(side.totals) + "</tr></tbody></table></div>";
+    var dnp = side.dnp.length ? '<p class="note">Nehrali (DNP): ' + side.dnp.map(function (p) {
+      return esc(p.name) + (p.reason ? " – " + esc(p.reason) : "");
+    }).join(", ") + "</p>" : "";
+    return tabs + table + dnp;
   }
 
   function gameCard(g, date) {
@@ -629,8 +666,27 @@
   }
 
   document.addEventListener("click", function (e) {
-    var t = e.target.closest("[data-go],[data-rf],[data-reset],[data-install],[data-reveal]");
+    var t = e.target.closest("[data-go],[data-rf],[data-reset],[data-install],[data-reveal],[data-box],[data-boxteam]");
     if (!t) return;
+    if (t.dataset.box) {
+      var area = document.getElementById("box-" + t.dataset.box);
+      if (!area) return;
+      if (!area.hidden) { area.hidden = true; t.textContent = "Box score ▾"; return; }
+      area.hidden = false;
+      t.textContent = "Box score ▴";
+      if (!area.innerHTML) {
+        area.innerHTML = '<p class="res-none">Načítavam…</p>';
+        var bg = t.dataset.box, bd = t.dataset.date;
+        loadBox(bd).then(function () { area.innerHTML = renderBox(bg, bd); },
+          function () { area.innerHTML = '<p class="res-none">Box score sa nepodarilo načítať.</p>'; });
+      }
+      return;
+    }
+    if (t.dataset.boxteam) {
+      var ar = document.getElementById("box-" + t.dataset.boxgame);
+      if (ar) ar.innerHTML = renderBox(t.dataset.boxgame, t.dataset.date, t.dataset.boxteam);
+      return;
+    }
     if (t.dataset.reveal) {
       if (!t.classList.contains("armed")) {  // prvé ťuknutie len pripraví – žiadny náhodný spoiler
         t.classList.add("armed");

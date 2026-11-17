@@ -64,6 +64,7 @@ class Builder:
         self.warnings = []
         self.lineup_dir = os.path.join(state_dir, "lineups")
         self.names = {}
+        self.fresh_box = {}  # box score zo summary stiahnutých počas tohto behu
 
     # ---------- pomocné ----------
     def _pmap(self, fn, items, workers=None):
@@ -76,7 +77,9 @@ class Builder:
         cached = load_json(path)
         if cached is None:
             try:
-                cached = parse.lineup_from_summary(self.espn.summary(event_id))
+                summary = self.espn.summary(event_id)
+                cached = parse.lineup_from_summary(summary)
+                self.fresh_box[event_id] = results.boxscore_from_summary(summary)
             except EspnError as e:
                 self.warnings.append(f"Box score {event_id} sa nepodarilo načítať: {e}")
                 return None
@@ -147,6 +150,7 @@ class Builder:
             self.rosters[res["id"]] = roster or []
         self.roster_ids = {tid: {p["id"] for p in r} for tid, r in self.rosters.items() if r}
         self.roster_names = {p["id"]: p["name"] for r in self.rosters.values() for p in r}
+        self.roster_pos = {p["id"]: p.get("pos") for r in self.rosters.values() for p in r if p.get("pos")}
 
     def target_dates(self, backfill_from=None):
         if backfill_from:
@@ -216,8 +220,30 @@ class Builder:
             day_scores = {g["id"]: self.scores[g["id"]] for g in day["games"] if g["id"] in self.scores}
             if day_scores:
                 write_json(os.path.join(self.data_dir, "scores", f"{d.isoformat()}.json"), day_scores, check=False)
+            self._write_boxscores(d, day["games"])
         self.latest_day = written[-1] if written else None
         return boards
+
+    def _write_boxscores(self, d, games):
+        """Box score do docs/data/boxscores/<deň>.json – appka ho načíta až po odkrytí výsledku."""
+        path = os.path.join(self.data_dir, "boxscores", f"{d.isoformat()}.json")
+        boxes = load_json(path, {}) or {}
+        changed = False
+        for g in games:
+            box = self.fresh_box.get(g["id"])
+            if box is None and g["id"] not in boxes:
+                try:
+                    box = results.boxscore_from_summary(self.espn.summary(g["id"]))
+                except EspnError as e:
+                    self.warnings.append(f"Box score {g['id']}: {e}")
+            if box:
+                for side in box.values():  # presné pozície zo súpisky (PG/SG/SF/PF/C)
+                    for p in side["players"] + side["dnp"]:
+                        p["pos"] = self.roster_pos.get(p["id"], p["pos"])
+                boxes[g["id"]] = box
+                changed = True
+        if changed:
+            write_json(path, boxes, check=False)
 
     def _game_entry(self, d, g):
         lu = self.lineups.get(g["id"])

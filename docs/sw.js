@@ -1,5 +1,5 @@
 /* Service worker: appka funguje offline a pri výpadku ukáže poslednú platnú verziu dát. */
-var VERSION = "v14";
+var VERSION = "v15";
 var SHELL = "shell-" + VERSION;
 var DATA = "data-" + VERSION;
 var ASSETS = "assets-" + VERSION;
